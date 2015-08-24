@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 import sys
 try:
     import cPickle as pickle
@@ -6,8 +8,8 @@ except ImportError:
     import pickle
 from functools import wraps
 
-from cacheops import cross
-from cacheops.cross import json
+from .analytics import insights_reporter as reporter
+from .cross import json, md5 as cross_md5
 
 import django
 from django.core.exceptions import ImproperlyConfigured
@@ -21,7 +23,7 @@ try:
 except ImportError:
     MAX_GET_RESULTS = None
 
-from cacheops.conf import model_profile, redis_client, handle_connection_failure
+from cacheops.conf import model_name, model_profile, redis_client, handle_connection_failure
 from cacheops.utils import monkey_mix, dnf, conj_scheme, get_model_name, non_proxy, stamp_fields
 from cacheops.invalidation import cache_schemes, conj_cache_key, invalidate_obj, invalidate_model
 
@@ -266,7 +268,7 @@ class QuerySetMixin(object):
         """
         Compute a cache key for this queryset
         """
-        md5 = cross.md5()
+        md5 = cross_md5()
         md5.update('%s.%s' % (self.__class__.__module__, self.__class__.__name__))
         md5.update(stamp_fields(self.model)) # Protect from field list changes in model
         md5.update(stringify_query(self.query))
@@ -366,7 +368,10 @@ class QuerySetMixin(object):
             if not self._cache_write_only:
                 # Trying get data from cache
                 cache_data = redis_client.get(cache_key)
-                if cache_data is not None:
+                if cache_data is None:
+                    reporter.cache_miss(model_name(self.model)[0], cache_key)
+                else:
+                    reporter.cache_hit(model_name(self.model)[0], cache_key)
                     results = pickle.loads(cache_data)
                     for obj in results:
                         yield obj
@@ -380,6 +385,7 @@ class QuerySetMixin(object):
             yield obj
 
         if cache_this:
+            reporter.cache_created(model_name(self.model)[0], cache_key)
             self._cache_results(cache_key, results)
         raise StopIteration
 

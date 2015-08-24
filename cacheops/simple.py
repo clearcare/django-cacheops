@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 try:
     import cPickle as pickle
 except ImportError:
@@ -9,8 +11,8 @@ import time
 
 from django.conf import settings
 
-from cacheops import cross
-from cacheops.conf import redis_client
+from .cross import md5 as cross_md5
+from .conf import redis_client
 
 
 __all__ = ('cache', 'cached', 'file_cache', 'CacheMiss')
@@ -31,7 +33,7 @@ class BaseCache(object):
         def decorator(func):
             def get_cache_key(*args, **kwargs):
                 # Calculating cache key based on func and arguments
-                md5 = cross.md5()
+                md5 = cross_md5()
                 md5.update('%s.%s' % (func.__module__, func.__name__))
                 # TODO: make it more civilized
                 if extra is not None:

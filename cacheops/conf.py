@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import
+
 from copy import deepcopy
 from functools import wraps
 import warnings
 import redis
+import os
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -25,6 +28,24 @@ for key in profiles:
 
 # Support degradation on redis fail
 DEGRADE_ON_FAILURE = getattr(settings, 'CACHEOPS_DEGRADE_ON_FAILURE', False)
+INSIGHTS_ENABLED = getattr(settings, 'CACHEOPS_INSIGHTS_ENABLED', False)
+INSIGHTS_BATCH_SIZE = getattr(settings, 'CACHEOPS_INSIGHTS_BATCH_SIZE', 1000)
+INSIGHTS_ACCOUNT_ID = getattr(settings, 'CACHEOPS_INSIGHTS_ACCOUNT_ID')
+INSIGHTS_INSERT_KEY = os.environ.get('CACHEOPS_INSIGHTS_INSERT_KEY')
+
+if INSIGHTS_ENABLED:
+
+    if INSIGHTS_ACCOUNT_ID is None:
+        raise RuntimeError(
+            'The CACHEOPS_INSIGHTS_ACCOUNT_ID setting is required '
+            'when CACHEOPS_INSIGHTS_ENABLED is enabled.',
+        )
+
+    if INSIGHTS_INSERT_KEY is None:
+        raise RuntimeError(
+            'The CACHEOPS_INSIGHTS_INSERT_KEY environment variable is required '
+            'when CACHEOPS_INSIGHTS_ENABLED is enabled.',
+        )
 
 def handle_connection_failure(func):
     if not DEGRADE_ON_FAILURE:
@@ -78,6 +99,11 @@ def prepare_profiles():
     if not model_profiles and not settings.DEBUG:
         raise ImproperlyConfigured('You must specify non-empty CACHEOPS setting to use cacheops')
 
+def model_name(model):
+    app = model._meta.app_label
+    # module_name is fallback for Django 1.5-
+    model_name = getattr(model._meta, 'model_name', None) or model._meta.module_name
+    return '%s.%s' % (app, model_name), app
 
 def model_profile(model):
     """
@@ -86,10 +112,7 @@ def model_profile(model):
     if not model_profiles:
         prepare_profiles()
 
-    app = model._meta.app_label
-    # module_name is fallback for Django 1.5-
-    model_name = getattr(model._meta, 'model_name', None) or model._meta.module_name
-    app_model = '%s.%s' % (app, model_name)
+    app_model, app = model_name(model)
     for guess in (app_model, '%s.*' % app, '*.*'):
         if guess in model_profiles:
             return model_profiles[guess]

@@ -22,6 +22,7 @@ setup(
         'redis>=2.4.12',
         'simplejson>=2.2.0',
         'six>=1.4.0',
+        'requests-futures>=0.9.5',
     ],
 
     classifiers=[
