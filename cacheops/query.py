@@ -7,6 +7,7 @@ except ImportError:
 from functools import wraps
 
 from cacheops import cross
+from cacheops.analytics import insights_reporter as reporter
 from cacheops.cross import json
 
 import django
@@ -21,7 +22,7 @@ try:
 except ImportError:
     MAX_GET_RESULTS = None
 
-from cacheops.conf import model_profile, redis_client, handle_connection_failure
+from cacheops.conf import model_name, model_profile, redis_client, handle_connection_failure
 from cacheops.utils import monkey_mix, dnf, conj_scheme, get_model_name, non_proxy, stamp_fields
 from cacheops.invalidation import cache_schemes, conj_cache_key, invalidate_obj, invalidate_model
 
@@ -366,7 +367,10 @@ class QuerySetMixin(object):
             if not self._cache_write_only:
                 # Trying get data from cache
                 cache_data = redis_client.get(cache_key)
-                if cache_data is not None:
+                if cache_data is None:
+                    reporter.cache_miss(model_name(self.model)[0], cache_key)
+                else:
+                    reporter.cache_hit(model_name(self.model)[0], cache_key)
                     results = pickle.loads(cache_data)
                     for obj in results:
                         yield obj
@@ -380,6 +384,7 @@ class QuerySetMixin(object):
             yield obj
 
         if cache_this:
+            reporter.cache_created(model_name(self.model)[0], cache_key)
             self._cache_results(cache_key, results)
         raise StopIteration
 
