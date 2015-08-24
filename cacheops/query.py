@@ -259,8 +259,8 @@ class QuerySetMixin(object):
         if self._cacheprofile is None:
             raise ImproperlyConfigured(
                 'Cacheops is not enabled for %s model.\n'
-                'If you don\'t want to cache anything by default you can "just_enable" it.'
-                    % get_model_name(self.model))
+                'If you don\'t want to cache anything by default you can "just_enable" it.' %
+                get_model_name(self.model))
 
     def _cache_key(self, extra=''):
         """
@@ -412,8 +412,9 @@ class QuerySetMixin(object):
                     _local_get_cache[key] = self._no_monkey.get(self, *args, **kwargs)
                     return _local_get_cache[key]
                 except TypeError:
-                    pass # If some arg is unhashable we can't save it to dict key,
-                         # we just skip local cache in that case
+                    # If some arg is unhashable we can't save it to dict key,
+                    # we just skip local cache in that case
+                    pass
 
             if 'fetch' in self._cacheops:
                 qs = self

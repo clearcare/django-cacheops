@@ -19,7 +19,7 @@ from cacheops import cross
 import django
 from django.db.models import Model
 from django.db.models.query import QuerySet
-from django.db.models.sql import AND, OR
+from django.db.models.sql import OR
 from django.db.models.sql.query import Query, ExtraWhere
 from django.db.models.sql.where import EverythingNode, NothingNode
 from django.db.models.sql.expressions import SQLEvaluator

@@ -1,10 +1,11 @@
-import six, hashlib
+import hashlib
+import six
 
 # simplejson is slow in python 3 and json supports sort_keys
 if six.PY2:
     import simplejson as json
 else:
-    import json
+    import json  # NOQA
 
 if six.PY2:
     md5 = hashlib.md5
