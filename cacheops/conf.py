@@ -5,7 +5,6 @@ from copy import deepcopy
 from functools import wraps
 import warnings
 import redis
-import os
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -31,7 +30,7 @@ DEGRADE_ON_FAILURE = getattr(settings, 'CACHEOPS_DEGRADE_ON_FAILURE', False)
 INSIGHTS_ENABLED = getattr(settings, 'CACHEOPS_INSIGHTS_ENABLED', False)
 INSIGHTS_BATCH_SIZE = getattr(settings, 'CACHEOPS_INSIGHTS_BATCH_SIZE', 1000)
 INSIGHTS_ACCOUNT_ID = getattr(settings, 'CACHEOPS_INSIGHTS_ACCOUNT_ID')
-INSIGHTS_INSERT_KEY = os.environ.get('CACHEOPS_INSIGHTS_INSERT_KEY')
+INSIGHTS_INSERT_KEY = getattr(settings, 'CACHEOPS_INSIGHTS_INSERT_KEY')
 
 if INSIGHTS_ENABLED:
 
