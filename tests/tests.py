@@ -8,7 +8,6 @@ import django
 from django.test import TestCase
 from django.contrib.auth.models import User
 from django.template import Context, Template
-from django.db import connection
 
 from cacheops import invalidate_all, invalidate_model, invalidate_obj, cached
 from .models import *
@@ -267,7 +266,6 @@ class IssueTests(BaseTestCase):
 
     def test_29(self):
         MachineBrand.objects.exclude(labels__in=[1, 2, 3]).cache().count()
-
 
     def test_39(self):
         list(Point.objects.filter(x=7).cache())
