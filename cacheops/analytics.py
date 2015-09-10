@@ -39,7 +39,7 @@ class InsightsReporter(object):
                 'cache_key': cache_key,
                 'timestamp': time.time(),
             })
-            if len(self.events) == INSIGHTS_BATCH_SIZE:
+            if len(self.events) >= INSIGHTS_BATCH_SIZE:
                 self._send_events()
 
     def enabled_for_model(self, model_name):
