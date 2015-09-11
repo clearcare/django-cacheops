@@ -24,7 +24,7 @@ setup(
         'simplejson>=2.2.0',
         'six>=1.4.0',
         'requests-futures>=0.9.5',
-        'mock=>1.3.0',
+        'mock>=1.3.0',
     ],
 
     classifiers=[
