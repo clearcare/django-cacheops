@@ -27,10 +27,13 @@ for key in profiles:
 
 # Support degradation on redis fail
 DEGRADE_ON_FAILURE = getattr(settings, 'CACHEOPS_DEGRADE_ON_FAILURE', False)
+
+# Insights settings
 INSIGHTS_ENABLED = getattr(settings, 'CACHEOPS_INSIGHTS_ENABLED', False)
 INSIGHTS_BATCH_SIZE = getattr(settings, 'CACHEOPS_INSIGHTS_BATCH_SIZE', 1000)
-INSIGHTS_ACCOUNT_ID = getattr(settings, 'CACHEOPS_INSIGHTS_ACCOUNT_ID')
-INSIGHTS_INSERT_KEY = getattr(settings, 'CACHEOPS_INSIGHTS_INSERT_KEY')
+INSIGHTS_ACCOUNT_ID = getattr(settings, 'CACHEOPS_INSIGHTS_ACCOUNT_ID', None)
+INSIGHTS_INSERT_KEY = getattr(settings, 'CACHEOPS_INSIGHTS_INSERT_KEY', None)
+INSIGHTS_WHITELIST = getattr(settings, 'CACHEOPS_INSIGHTS_WHITELIST', frozenset())
 
 if INSIGHTS_ENABLED:
 

@@ -8,7 +8,7 @@ except ImportError:
     import pickle
 from functools import wraps
 
-from .analytics import insights_reporter as reporter
+from .analytics import insights_reporter
 from .cross import json, md5 as cross_md5
 
 import django
@@ -23,7 +23,13 @@ try:
 except ImportError:
     MAX_GET_RESULTS = None
 
-from cacheops.conf import model_name, model_profile, redis_client, handle_connection_failure
+from cacheops.conf import (
+    model_name,
+    model_profile,
+    redis_client,
+    handle_connection_failure,
+)
+
 from cacheops.utils import monkey_mix, dnf, conj_scheme, get_model_name, non_proxy, stamp_fields
 from cacheops.invalidation import cache_schemes, conj_cache_key, invalidate_obj, invalidate_model
 
@@ -360,6 +366,8 @@ class QuerySetMixin(object):
 
     def iterator(self):
         # TODO: do not cache empty queries in Django 1.6
+
+        name = model_name(self.model)[0]
         superiter = self._no_monkey.iterator
         cache_this = self._cacheprofile and 'fetch' in self._cacheops
 
@@ -369,9 +377,15 @@ class QuerySetMixin(object):
                 # Trying get data from cache
                 cache_data = redis_client.get(cache_key)
                 if cache_data is None:
-                    reporter.cache_miss(model_name(self.model)[0], cache_key)
+                    insights_reporter.cache_miss(name, cache_key)
                 else:
-                    reporter.cache_hit(model_name(self.model)[0], cache_key)
+                    if insights_reporter.enabled_for_model(name):
+                        ttl = redis_client.ttl(cache_key)
+                        insights_reporter.cache_hit(
+                            name,
+                            cache_key,
+                            model_profile(self.model)['timeout'] - ttl,
+                        )
                     results = pickle.loads(cache_data)
                     for obj in results:
                         yield obj
@@ -385,7 +399,7 @@ class QuerySetMixin(object):
             yield obj
 
         if cache_this:
-            reporter.cache_created(model_name(self.model)[0], cache_key)
+            insights_reporter.cache_created(name, cache_key)
             self._cache_results(cache_key, results)
         raise StopIteration
 

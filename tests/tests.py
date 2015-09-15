@@ -8,7 +8,7 @@ import django
 from django.test import TestCase
 from django.contrib.auth.models import User
 from django.template import Context, Template
-from django.db import connection
+from mock import patch
 
 from cacheops import invalidate_all, invalidate_model, invalidate_obj, cached
 from .models import *
@@ -21,20 +21,23 @@ class BaseTestCase(TestCase):
         print('\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\invalidation done///////////////////////////////////////////////')
 
 
+@patch('cacheops.analytics.insights_reporter.session.post')
 class BasicTests(BaseTestCase):
     fixtures = ['basic']
 
-    def test_it_works(self):
+    def test_it_works(self, mock_post):
         with self.assertNumQueries(1):
             cnt1 = Category.objects.cache().count()
             cnt2 = Category.objects.cache().count()
             self.assertEqual(cnt1, cnt2)
+        self.assertEquals(mock_post.call_count, 0)
 
-    def test_empty(self):
+    def test_empty(self, mock_post):
         with self.assertNumQueries(0):
             list(Category.objects.cache().filter(id__in=[]))
+        self.assertEquals(mock_post.call_count, 2)
 
-    def test_some(self):
+    def test_some(self, mock_post):
         # Ignoring SOME condition lead to wrong DNF for this queryset,
         # which leads to no invalidation
         list(Category.objects.exclude(pk__in=range(10), pk__isnull=False).cache())
@@ -42,8 +45,9 @@ class BasicTests(BaseTestCase):
         c.save()
         with self.assertNumQueries(1):
             list(Category.objects.exclude(pk__in=range(10), pk__isnull=False).cache())
+        self.assertEquals(mock_post.call_count, 4)
 
-    def test_invalidation(self):
+    def test_invalidation(self, mock_post):
         post = Post.objects.cache().get(pk=1)
         post.title += ' changed'
         post.save()
@@ -51,24 +55,27 @@ class BasicTests(BaseTestCase):
         with self.assertNumQueries(1):
             changed_post = Post.objects.cache().get(pk=1)
             self.assertEqual(post.title, changed_post.title)
+        self.assertEquals(mock_post.call_count, 4)
 
-    def test_invalidate_by_foreign_key(self):
+    def test_invalidate_by_foreign_key(self, mock_post):
         posts = list(Post.objects.cache().filter(category=1))
         Post.objects.create(title='New Post', category_id=1)
 
         with self.assertNumQueries(1):
             changed_posts = list(Post.objects.cache().filter(category=1))
             self.assertEqual(len(changed_posts), len(posts) + 1)
+        self.assertEquals(mock_post.call_count, 4)
 
-    def test_invalidate_by_one_to_one(self):
+    def test_invalidate_by_one_to_one(self, mock_post):
         extras = list(Extra.objects.cache().filter(post=3))
         Extra.objects.create(post_id=3, tag=0)
 
         with self.assertNumQueries(1):
             changed_extras = list(Extra.objects.cache().filter(post=3))
             self.assertEqual(len(changed_extras), len(extras) + 1)
+        self.assertEquals(mock_post.call_count, 0)
 
-    def test_invalidate_by_boolean(self):
+    def test_invalidate_by_boolean(self, mock_post):
         count = Post.objects.cache().filter(visible=True).count()
 
         post = Post.objects.get(pk=1, visible=True)
@@ -78,8 +85,9 @@ class BasicTests(BaseTestCase):
         with self.assertNumQueries(1):
             new_count = Post.objects.cache().filter(visible=True).count()
             self.assertEqual(new_count, count - 1)
+        self.assertEquals(mock_post.call_count, 0)
 
-    def test_invalidate_by_m2m(self):
+    def test_invalidate_by_m2m(self, mock_post):
         with self.assertNumQueries(1):
             mb = MachineBrand.objects.cache().get(id=1)
 
@@ -114,7 +122,7 @@ class BasicTests(BaseTestCase):
         with self.assertNumQueries(0):
             list(mb.labels.cache().all())
 
-        with self.assertNumQueries(2):
+        with self.assertNumQueries(1):
             label = Label.objects.cache().create(text="Gateway")
 
         with self.assertNumQueries(2):
@@ -124,19 +132,22 @@ class BasicTests(BaseTestCase):
             list(mb.labels.cache().all())
         with self.assertNumQueries(0):
             list(mb.labels.cache().all())
+        self.assertEquals(mock_post.call_count, 0)
 
-    def test_db_column(self):
+    def test_db_column(self, mock_post):
         e = Extra.objects.cache().get(tag=5)
         e.save()
+        self.assertEquals(mock_post.call_count, 0)
 
-    def test_fk_to_db_column(self):
+    def test_fk_to_db_column(self, mock_post):
         e = Extra.objects.cache().get(to_tag__tag=5)
         e.save()
 
         with self.assertNumQueries(1):
             Extra.objects.cache().get(to_tag=5)
+        self.assertEquals(mock_post.call_count, 0)
 
-    def test_expressions(self):
+    def test_expressions(self, mock_post):
         from django.db.models import F
         queries = (
             {'tag': F('tag')},
@@ -156,14 +167,16 @@ class BasicTests(BaseTestCase):
             with self.assertNumQueries(c):
                 for q in queries:
                     Extra.objects.cache().filter(**q).count()
+        self.assertEquals(mock_post.call_count, 0)
 
-    def test_combine(self):
+    def test_combine(self, mock_post):
         qs = Post.objects.filter(pk__in=[1, 2]) & Post.objects.all()
         self.assertEqual(list(qs.cache()), list(qs))
 
         qs = Post.objects.filter(pk__in=[1, 2]) | Post.objects.none()
         self.assertEqual(list(qs.cache()), list(qs))
 
+        self.assertEquals(mock_post.call_count, 4)
 
 from datetime import date, datetime, time
 
@@ -268,7 +281,6 @@ class IssueTests(BaseTestCase):
     def test_29(self):
         MachineBrand.objects.exclude(labels__in=[1, 2, 3]).cache().count()
 
-
     def test_39(self):
         list(Point.objects.filter(x=7).cache())
 
@@ -287,8 +299,10 @@ class IssueTests(BaseTestCase):
     def test_56(self):
         Post.objects.exclude(extra__in=[1, 2]).cache().count()
 
-    def test_57(self):
+    @patch('cacheops.analytics.insights_reporter.session.post')
+    def test_57(self, mock_post):
         list(Post.objects.filter(category__in=Category.objects.nocache()).cache())
+        self.assertEquals(mock_post.call_count, 2)
 
     def test_58(self):
         list(Post.objects.cache().none())
@@ -345,6 +359,7 @@ class ManyToManyTests(BaseTestCase):
         PhotoLike.objects.create(user=self.peterdds, photo=self.photo)
         invalidate_obj(self.peterdds)
         self.assertEqual(make_query(), [self.suor, self.peterdds])
+
 
 # Tests for proxy models, see #30
 class ProxyTests(BaseTestCase):
