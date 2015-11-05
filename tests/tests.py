@@ -122,7 +122,7 @@ class BasicTests(BaseTestCase):
         with self.assertNumQueries(0):
             list(mb.labels.cache().all())
 
-        with self.assertNumQueries(1):
+        with self.assertNumQueries(2):
             label = Label.objects.cache().create(text="Gateway")
 
         with self.assertNumQueries(2):
