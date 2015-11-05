@@ -6,8 +6,8 @@ active = 0
 empty = 0
 tsize = 0
 
-r = redis.StrictRedis(host='localhost', port=6379)
-members = r.smembers('conj:activity.mailstate:id=None')
+r = redis.StrictRedis(host='localhost', port=6379, db=1)
+members = r.smembers('conj:agency.agency:active=True&subdomain=metzler')
 for key in members:
     item = r.get(key)
     if item is None:
