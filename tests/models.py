@@ -7,7 +7,7 @@ from django.contrib.contenttypes import generic
 from django.contrib.auth.models import User
 
 
-### For basic tests and bench
+# For basic tests and bench
 
 class Category(models.Model):
     title = models.CharField(max_length=128)
@@ -32,7 +32,7 @@ class Extra(models.Model):
         return 'Extra(post_id=%s, tag=%s)' % (self.post_id, self.tag)
 
 
-### Specific and custom fields
+# Specific and custom fields
 
 class CustomValue(object):
     def __init__(self, value):
@@ -101,7 +101,6 @@ class Movie(Media):
 # Decimals
 class Point(models.Model):
     x = models.DecimalField(decimal_places=6, max_digits=8, blank=True, default=0.0)
-
 
 
 # 29
