@@ -132,7 +132,7 @@ class BasicTests(BaseTestCase):
             list(mb.labels.cache().all())
         with self.assertNumQueries(0):
             list(mb.labels.cache().all())
-        self.assertEquals(mock_post.call_count, 0)
+        self.assertEquals(mock_post.call_count, 18)
 
     def test_db_column(self, mock_post):
         e = Extra.objects.cache().get(tag=5)
