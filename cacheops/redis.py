@@ -25,6 +25,13 @@ else:
 class SafeRedis(redis.StrictRedis):
     get = handle_connection_failure(redis.StrictRedis.get)
 
+    def get_with_ttl(self, name):
+        txn = redis_client.pipeline()
+        cache_data = redis_client.get(name)
+        ttl = redis_client.ttl(name)
+        txn.execute()
+        return cache_data, ttl
+
 
 class LazyRedis(object):
     def _setup(self):

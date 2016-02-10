@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os, sys, re, shutil
 os.environ['DJANGO_SETTINGS_MODULE'] = 'tests.settings'
+os.environ['CACHEOPS_DEGRADE_ON_FAILURE'] = 'True'
 
 import django
 from django.core.management import call_command

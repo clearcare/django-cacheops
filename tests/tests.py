@@ -993,12 +993,24 @@ class SignalsTests(BaseTestCase):
         # Miss
         test_model = Category.objects.create(title="foo")
         Category.objects.cache().get(id=test_model.id)
-        self.assertEqual(self.signal_calls, [{'sender': Category, 'func': None, 'hit': False}])
+        del self.signal_calls[0]['cache_key']
+        self.assertEqual(self.signal_calls, [{
+            'sender': Category,
+            'func': None,
+            'hit': False,
+            'age': 3602L,
+        }])
 
         # Hit
         self.signal_calls = []
         Category.objects.cache().get(id=test_model.id) # hit
-        self.assertEqual(self.signal_calls, [{'sender': Category, 'func': None, 'hit': True}])
+        del self.signal_calls[0]['cache_key']
+        self.assertEqual(self.signal_calls, [{
+            'sender': Category,
+            'func': None,
+            'hit': True,
+            'age': 0L,
+        }])
 
     def test_cached_as(self):
         get_calls = _make_inc(cached_as(Category.objects.filter(title='test')))
@@ -1006,12 +1018,24 @@ class SignalsTests(BaseTestCase):
 
         # Miss
         self.assertEqual(get_calls(), 1)
-        self.assertEqual(self.signal_calls, [{'sender': None, 'func': func, 'hit': False}])
+        del self.signal_calls[0]['cache_key']
+        self.assertEqual(self.signal_calls, [{
+            'sender': None,
+            'func': func,
+            'hit': False,
+            'age': 3602L,
+        }])
 
         # Hit
         self.signal_calls = []
         self.assertEqual(get_calls(), 1)
-        self.assertEqual(self.signal_calls, [{'sender': None, 'func': func, 'hit': True}])
+        del self.signal_calls[0]['cache_key']
+        self.assertEqual(self.signal_calls, [{
+            'sender': None,
+            'func': func,
+            'hit': True,
+            'age': 0L,
+        }])
 
 
 # Utilities
