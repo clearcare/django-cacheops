@@ -4,9 +4,9 @@ local processed = 0
 local deleted = 0
 
 for i, key in ipairs(KEYS) do
-    local exists = redis.call('ttl', key)
+    local exists = redis.call('exists', key)
     processed = processed + 1
-    if exists == -2 then
+    if exists == 0 then
         bytes = bytes + string.len(key)
         deleted = deleted + 1
         local response = redis.call('srem', conj_key, key)
