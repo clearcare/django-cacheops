@@ -20,6 +20,22 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
+def pretty_time_delta(seconds):
+    # https://gist.github.com/thatalextaylor/7408395
+    int_seconds = int(seconds)
+    milliseconds = seconds - int_seconds
+    days, seconds = divmod(int_seconds, 86400)
+    hours, seconds = divmod(int_seconds, 3600)
+    minutes, seconds = divmod(int_seconds, 60)
+    if days > 0:
+        return '{}d{}h{}m{}s{:0.2f}ms'.format(days, hours, minutes, seconds, milliseconds)
+    if hours > 0:
+        return '{}h{}m{}s{:0.2f}ms'.format(hours, minutes, seconds, milliseconds)
+    if minutes > 0:
+        return '{}m{}s{:0.2f}ms'.format(minutes, seconds, milliseconds)
+    return '{}s{:0.2f}ms'.format(seconds, milliseconds)
+
+
 def top(display_count, page_size):
 
     cards = {}
@@ -36,10 +52,10 @@ def top(display_count, page_size):
     for conj_key in top_keys[:display_count]:
         print('{}: {:,}'.format(conj_key, cards[conj_key]))
 
-    print('\nkeys={:,} pages={:,} in {:.4}s'.format(
+    print('\nkeys={:,} pages={:,} in {}'.format(
         len(cards),
         len(cards) / page_size,
-        time.time() - start_time,
+        pretty_time_delta(time.time() - start_time),
     ))
 
 
@@ -60,6 +76,7 @@ def gc_conj_key(conj_key, page_size):
 def gc(page_size):
     cursor = 0
     stats = defaultdict(int)
+    start_time = time.time()
     while True:
         cursor, conj_keys = redis_client.scan(match='conj:*', count=page_size)
         for conj_key in conj_keys:
@@ -72,6 +89,7 @@ def gc(page_size):
     print('Processed: {:,}'.format(stats['processed']))
     print('Deleted: {:,}'.format(stats['deleted']))
     print('Freed: {}'.format(sizeof_fmt(stats['bytes'])))
+    print('Time: {}'.format(pretty_time_delta(time.time() - start_time)))
 
 
 class Command(BaseCommand):
