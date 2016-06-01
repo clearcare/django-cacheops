@@ -36,17 +36,19 @@ def pretty_time_delta(seconds):
     return '{}s{:0.2f}ms'.format(seconds, milliseconds)
 
 
-def top(display_count, page_size):
+def top(display_count, pages, page_size):
 
     cards = {}
     start_time = time.time()
 
     conj_keys = redis_client.scan_iter(match='conj:*', count=page_size)
-    for conj_key in conj_keys:
+    for i, conj_key in enumerate(conj_keys):
         # This operation is O(1)
         # http://redis.io/commands/SCARD
         card = redis_client.scard(conj_key)
         cards[conj_key] = card
+        if pages and i % page_size > pages:
+            break
 
     top_keys = sorted(cards, key=cards.get, reverse=True)
     for conj_key in top_keys[:display_count]:
@@ -59,8 +61,9 @@ def top(display_count, page_size):
     ))
 
 
-def gc_conj_key(conj_key, page_size):
+def gc_conj_key(conj_key, pages, page_size):
     cursor = 0
+    pages = 0
     stats = defaultdict(int)
     while True:
         cursor, members = redis_client.sscan(conj_key, cursor=cursor, count=page_size)
@@ -68,26 +71,30 @@ def gc_conj_key(conj_key, page_size):
         stats['processed'] += response[0]
         stats['deleted'] += response[1]
         stats['bytes'] += response[2]
-        if cursor == 0:
+        pages += 1
+        if cursor == 0 or (pages is not None and pages > page_size):
             break
     return stats
 
 
-def gc(page_size):
+def gc(pages, page_size):
     cursor = 0
+    pages = 0
     stats = defaultdict(int)
     start_time = time.time()
     while True:
-        cursor, conj_keys = redis_client.scan(match='conj:*', count=page_size)
+        cursor, conj_keys = redis_client.scan(cursor=cursor, match='conj:*', count=page_size)
         for conj_key in conj_keys:
-            response = gc_conj_key(conj_key, page_size)
+            response = gc_conj_key(conj_key, pages, page_size)
             for stat, value in response.iteritems():
                 stats[stat] += value
-        if cursor == 0:
+        pages += 1
+        if cursor == 0 or (pages is not None and pages > page_size):
             break
 
     print('Processed: {:,}'.format(stats['processed']))
     print('Deleted: {:,}'.format(stats['deleted']))
+    print('Pages: {:,}'.format(pages))
     print('Freed: {}'.format(sizeof_fmt(stats['bytes'])))
     print('Time: {}'.format(pretty_time_delta(time.time() - start_time)))
 
@@ -95,6 +102,11 @@ def gc(page_size):
 class Command(BaseCommand):
     help = 'Cleanup expired invalidation structures'
     option_list = BaseCommand.option_list + (
+        make_option(
+            '--pages',
+            dest='pages',
+            help='Max number of pages to use when calling the scan comands',
+        ),
         make_option(
             '--page-size',
             dest='page_size',
@@ -116,10 +128,11 @@ class Command(BaseCommand):
 
     def handle(self, **options):
 
+        pages = int(options['pages'])
         page_size = int(options['page_size'])
 
         if options['top']:
-            top(int(options['top']), page_size)
+            top(int(options['top']), pages, page_size)
         else:
             if not settings.CACHEOPS_LRU:
                 print('This script is only required when CACHEOPS_LRU is enabled', file=sys.stderr)
@@ -128,4 +141,4 @@ class Command(BaseCommand):
             if options['host']:
                 settings.CACHEOPS_REDIS['host'] = options['host']
 
-            gc(page_size)
+            gc(pages, page_size)
