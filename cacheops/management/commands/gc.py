@@ -128,7 +128,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
 
-        pages = int(options['pages'])
+        pages = options['pages']
+        if pages is not None:
+            pages = int(pages)
+
         page_size = int(options['page_size'])
 
         if options['top']:
