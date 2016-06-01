@@ -126,7 +126,7 @@ class Command(BaseCommand):
         ),
     )
 
-    def handle(self, **options):
+    def handle(self, *args, **options):
 
         pages = int(options['pages'])
         page_size = int(options['page_size'])
