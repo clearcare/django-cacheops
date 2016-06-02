@@ -61,10 +61,11 @@ def top(display_count, pages, page_size):
     ))
 
 
-def gc_conj_key(conj_key, pages, page_size):
+def gc_conj_key(conj_key, max_pages, page_size, interval):
     cursor = 0
     pages = 0
     stats = defaultdict(int)
+    start_time = time.time()
     while True:
         cursor, members = redis_client.sscan(conj_key, cursor=cursor, count=page_size)
         response = load_script('gc')(keys=members, args=[conj_key])
@@ -72,12 +73,15 @@ def gc_conj_key(conj_key, pages, page_size):
         stats['deleted'] += response[1]
         stats['bytes'] += response[2]
         pages += 1
-        if cursor == 0 or (pages is not None and pages > page_size):
+        if cursor == 0 or (max_pages is not None and max_pages < pages):
             break
+        time.sleep(interval)
+    stats['pages'] = pages
+    stats['runtime'] = time.time() - start_time
     return stats
 
 
-def gc(pages, page_size):
+def gc(max_pages, page_size, interval):
     cursor = 0
     pages = 0
     stats = defaultdict(int)
@@ -85,18 +89,25 @@ def gc(pages, page_size):
     while True:
         cursor, conj_keys = redis_client.scan(cursor=cursor, match='conj:*', count=page_size)
         for conj_key in conj_keys:
-            response = gc_conj_key(conj_key, pages, page_size)
-            for stat, value in response.iteritems():
-                stats[stat] += value
+            conj_stats = gc_conj_key(conj_key, pages, page_size, interval)
+            stats['processed'] += conj_stats['processed']
+            stats['deleted'] += conj_stats['deleted']
+            stats['bytes'] += conj_stats['bytes']
         pages += 1
-        if cursor == 0 or (pages is not None and pages > page_size):
+        if cursor == 0 or (max_pages is not None and max_pages < pages):
             break
+    stats['pages'] = pages
+    stats['runtime'] = time.time() - start_time
+    return stats
+
+
+def print_stats(stats):
 
     print('Processed: {:,}'.format(stats['processed']))
     print('Deleted: {:,}'.format(stats['deleted']))
-    print('Pages: {:,}'.format(pages))
+    print('Pages: {:,}'.format(stats['pages']))
     print('Freed: {}'.format(sizeof_fmt(stats['bytes'])))
-    print('Time: {}'.format(pretty_time_delta(time.time() - start_time)))
+    print('Time: {}'.format(pretty_time_delta(stats['runtime'])))
 
 
 class Command(BaseCommand):
@@ -115,14 +126,25 @@ class Command(BaseCommand):
             help='Page size to use when calling the scan comands',
         ),
         make_option(
+            '--conj',
+            dest='conj',
+            help='The conj set to process',
+        ),
+        make_option(
+            '--interval',
+            dest='interval',
+            default=.100,
+            help='The time to wait between sweeps.',
+        ),
+        make_option(
             '--host',
             dest='host',
-            help='Override the host setting',
+            help='Override the host setting.',
         ),
         make_option(
             '--top',
             dest='top',
-            help='Show the top X largest conjunction sets',
+            help='Show the top X largest conjunction sets.',
         ),
     )
 
@@ -133,9 +155,13 @@ class Command(BaseCommand):
             pages = int(pages)
 
         page_size = int(options['page_size'])
+        interval = float(options['interval'])
 
         if options['top']:
             top(int(options['top']), pages, page_size)
+        elif options['conj']:
+            stats = gc_conj_key(options['conj'], pages, page_size, interval)
+            print_stats(stats)
         else:
             if not settings.CACHEOPS_LRU:
                 print('This script is only required when CACHEOPS_LRU is enabled', file=sys.stderr)
@@ -144,4 +170,5 @@ class Command(BaseCommand):
             if options['host']:
                 settings.CACHEOPS_REDIS['host'] = options['host']
 
-            gc(pages, page_size)
+            stats = gc(pages, page_size, interval)
+            print_stats(stats)
