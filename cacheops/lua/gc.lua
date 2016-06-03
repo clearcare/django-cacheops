@@ -1,6 +1,6 @@
 local conj_key = ARGV[1]
 local bytes = 0 
-local processed = 0
+local processed = 1
 local deleted_items = 0
 local deleted_sets = 0
 local errors = 0
