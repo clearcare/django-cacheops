@@ -78,8 +78,8 @@ def gc_conj_key(conj_key, max_pages, page_size, interval):
         if cursor == 0 or (max_pages is not None and max_pages > pages):
             break
         time.sleep(interval)
-    stats['pages'] = pages
     stats['runtime'] = time.time() - start_time
+    stats['pages'] = pages
     return stats
 
 
@@ -97,13 +97,14 @@ def gc(max_pages, page_size, interval, verbosity):
             stats['deleted_sets'] += conj_stats['deleted_sets']
             stats['errors'] += conj_stats['errors']
             stats['bytes'] += conj_stats['bytes']
+            stats['runtime'] = time.time() - start_time
+            stats['bps'] = conj_stats['bytes'] / stats['runtime']
+            stats['pages'] = pages
         pages += 1
         if verbosity > 1 and pages % 100:
             print_stats(stats)
         if cursor == 0 or (max_pages is not None and max_pages > pages):
             break
-    stats['pages'] = pages
-    stats['runtime'] = time.time() - start_time
     return stats
 
 
@@ -115,6 +116,7 @@ def print_stats(stats):
     print('Deleted %: {:.2f}'.format(
         ((stats['deleted_items'] + stats['deleted_sets']) / stats['processed']) * 100
     ))
+    print('Bytes per second: {}'.format(sizeof_fmt(stats['bps'])))
     print('Errors: {:,}'.format(stats['errors']))
     print('Pages: {:,}'.format(stats['pages']))
     print('Freed: {}'.format(sizeof_fmt(stats['bytes'])))
