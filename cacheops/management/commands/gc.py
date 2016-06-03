@@ -70,10 +70,12 @@ def gc_conj_key(conj_key, max_pages, page_size, interval):
         cursor, members = redis_client.sscan(conj_key, cursor=cursor, count=page_size)
         response = load_script('gc')(keys=members, args=[conj_key])
         stats['processed'] += response[0]
-        stats['deleted'] += response[1]
-        stats['bytes'] += response[2]
+        stats['deleted_items'] += response[1]
+        stats['deleted_sets'] += response[2]
+        stats['errors'] += response[3]
+        stats['bytes'] += response[4]
         pages += 1
-        if cursor == 0 or (max_pages is not None and max_pages < pages):
+        if cursor == 0 or (max_pages is not None and max_pages > pages):
             break
         time.sleep(interval)
     stats['pages'] = pages
@@ -91,10 +93,12 @@ def gc(max_pages, page_size, interval):
         for conj_key in conj_keys:
             conj_stats = gc_conj_key(conj_key, pages, page_size, interval)
             stats['processed'] += conj_stats['processed']
-            stats['deleted'] += conj_stats['deleted']
+            stats['deleted_items'] += conj_stats['deleted_items']
+            stats['deleted_sets'] += conj_stats['deleted_sets']
+            stats['errors'] += conj_stats['errors']
             stats['bytes'] += conj_stats['bytes']
         pages += 1
-        if cursor == 0 or (max_pages is not None and max_pages < pages):
+        if cursor == 0 or (max_pages is not None and max_pages > pages):
             break
     stats['pages'] = pages
     stats['runtime'] = time.time() - start_time
@@ -104,7 +108,9 @@ def gc(max_pages, page_size, interval):
 def print_stats(stats):
 
     print('Processed: {:,}'.format(stats['processed']))
-    print('Deleted: {:,}'.format(stats['deleted']))
+    print('Deleted Items: {:,}'.format(stats['deleted_items']))
+    print('Deleted Sets: {:,}'.format(stats['deleted_sets']))
+    print('Errors: {:,}'.format(stats['errors']))
     print('Pages: {:,}'.format(stats['pages']))
     print('Freed: {}'.format(sizeof_fmt(stats['bytes'])))
     print('Time: {}'.format(pretty_time_delta(stats['runtime'])))
