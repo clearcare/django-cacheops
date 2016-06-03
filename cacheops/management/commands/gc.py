@@ -98,7 +98,8 @@ def gc(max_pages, page_size, interval, verbosity):
             stats['errors'] += conj_stats['errors']
             stats['bytes'] += conj_stats['bytes']
             stats['runtime'] = time.time() - start_time
-            stats['bps'] = conj_stats['bytes'] / float(stats['runtime'])
+            stats['bps'] = stats['bytes'] / float(stats['runtime'])
+            stats['ips'] = stats['processed'] / float(stats['runtime'])
             stats['pages'] = pages
         pages += 1
         if verbosity > 1 and pages % 100:
