@@ -124,7 +124,7 @@ def print_stats(stats):
     print('Pages: {:,}'.format(stats['pages']))
     print('Freed: {}'.format(sizeof_fmt(stats['bytes'])))
     print('Time: {}'.format(pretty_time_delta(stats['runtime'])))
-    print('\n')
+    print('')
 
 
 class Command(BaseCommand):
