@@ -83,7 +83,7 @@ def gc_conj_key(conj_key, max_pages, page_size, interval):
     return stats
 
 
-def gc(max_pages, page_size, interval):
+def gc(max_pages, page_size, interval, verbosity):
     cursor = 0
     pages = 0
     stats = defaultdict(int)
@@ -98,6 +98,8 @@ def gc(max_pages, page_size, interval):
             stats['errors'] += conj_stats['errors']
             stats['bytes'] += conj_stats['bytes']
         pages += 1
+        if verbosity > 1 and pages % 100:
+            print_stats(stats)
         if cursor == 0 or (max_pages is not None and max_pages > pages):
             break
     stats['pages'] = pages
@@ -162,6 +164,7 @@ class Command(BaseCommand):
 
         page_size = int(options['page_size'])
         interval = float(options['interval'])
+        verbosity = options['verbosity']
 
         if options['top']:
             top(int(options['top']), pages, page_size)
@@ -176,5 +179,5 @@ class Command(BaseCommand):
             if options['host']:
                 settings.CACHEOPS_REDIS['host'] = options['host']
 
-            stats = gc(pages, page_size, interval)
+            stats = gc(pages, page_size, interval, verbosity)
             print_stats(stats)
