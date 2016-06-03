@@ -98,7 +98,7 @@ def gc(max_pages, page_size, interval, verbosity):
             stats['errors'] += conj_stats['errors']
             stats['bytes'] += conj_stats['bytes']
             stats['runtime'] = time.time() - start_time
-            stats['bps'] = conj_stats['bytes'] / stats['runtime']
+            stats['bps'] = conj_stats['bytes'] / float(stats['runtime'])
             stats['pages'] = pages
         pages += 1
         if verbosity > 1 and pages % 100:
@@ -114,7 +114,7 @@ def print_stats(stats):
     print('Deleted Items: {:,}'.format(stats['deleted_items']))
     print('Deleted Sets: {:,}'.format(stats['deleted_sets']))
     print('Deleted %: {:.2f}'.format(
-        ((stats['deleted_items'] + stats['deleted_sets']) / stats['processed']) * 100
+        ((stats['deleted_items'] + stats['deleted_sets']) / float(stats['processed'])) * 100
     ))
     print('Bytes per second: {}'.format(sizeof_fmt(stats['bps'])))
     print('Errors: {:,}'.format(stats['errors']))
