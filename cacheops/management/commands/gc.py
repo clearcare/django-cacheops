@@ -112,10 +112,14 @@ def print_stats(stats):
     print('Processed: {:,}'.format(stats['processed']))
     print('Deleted Items: {:,}'.format(stats['deleted_items']))
     print('Deleted Sets: {:,}'.format(stats['deleted_sets']))
+    print('Deleted %: {:.2f}'.format(
+        ((stats['deleted_items'] + stats['deleted_sets']) / stats['processed']) * 100
+    ))
     print('Errors: {:,}'.format(stats['errors']))
     print('Pages: {:,}'.format(stats['pages']))
     print('Freed: {}'.format(sizeof_fmt(stats['bytes'])))
     print('Time: {}'.format(pretty_time_delta(stats['runtime'])))
+    print('\n')
 
 
 class Command(BaseCommand):
