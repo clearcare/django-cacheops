@@ -119,6 +119,7 @@ def print_stats(stats):
         ((stats['deleted_items'] + stats['deleted_sets']) / float(stats['processed'])) * 100
     ))
     print('Bytes per second: {}'.format(sizeof_fmt(stats['bps'])))
+    print('Items per second: {.2f}'.format(stats['ips']))
     print('Errors: {:,}'.format(stats['errors']))
     print('Pages: {:,}'.format(stats['pages']))
     print('Freed: {}'.format(sizeof_fmt(stats['bytes'])))
