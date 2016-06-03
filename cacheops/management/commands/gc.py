@@ -61,7 +61,7 @@ def top(display_count, pages, page_size):
     ))
 
 
-def gc_conj_key(conj_key, max_pages, page_size, interval):
+def gc_conj_key(conj_key, max_pages, page_size, interval, wait_pages):
     cursor = 0
     pages = 0
     stats = defaultdict(int)
@@ -77,13 +77,14 @@ def gc_conj_key(conj_key, max_pages, page_size, interval):
         pages += 1
         if cursor == 0 or (max_pages is not None and max_pages > pages):
             break
-        time.sleep(interval)
+        if pages % wait_pages:
+            time.sleep(interval)
     stats['runtime'] = time.time() - start_time
     stats['pages'] = pages
     return stats
 
 
-def gc(max_pages, page_size, interval, verbosity):
+def gc(max_pages, page_size, interval, verbosity, wait_pages):
     cursor = 0
     pages = 0
     stats = defaultdict(int)
@@ -91,7 +92,7 @@ def gc(max_pages, page_size, interval, verbosity):
     while True:
         cursor, conj_keys = redis_client.scan(cursor=cursor, match='conj:*', count=page_size)
         for conj_key in conj_keys:
-            conj_stats = gc_conj_key(conj_key, pages, page_size, interval)
+            conj_stats = gc_conj_key(conj_key, pages, page_size, interval, wait_pages)
             stats['processed'] += conj_stats['processed']
             stats['deleted_items'] += conj_stats['deleted_items']
             stats['deleted_sets'] += conj_stats['deleted_sets']
@@ -152,6 +153,13 @@ class Command(BaseCommand):
             help='The time to wait between sweeps.',
         ),
         make_option(
+            '--wait-pages',
+            dest='wait_pages',
+            action='store',
+            default=100,
+            help='Number of pages to process before sleeping',
+        ),
+        make_option(
             '--host',
             dest='host',
             help='Override the host setting.',
@@ -170,13 +178,14 @@ class Command(BaseCommand):
             pages = int(pages)
 
         page_size = int(options['page_size'])
+        wait_pages = int(options['wait_pages'])
         interval = float(options['interval'])
         verbosity = options['verbosity']
 
         if options['top']:
             top(int(options['top']), pages, page_size)
         elif options['conj']:
-            stats = gc_conj_key(options['conj'], pages, page_size, interval)
+            stats = gc_conj_key(options['conj'], pages, page_size, interval, wait_pages)
             print_stats(stats)
         else:
             if not settings.CACHEOPS_LRU:
@@ -186,5 +195,5 @@ class Command(BaseCommand):
             if options['host']:
                 settings.CACHEOPS_REDIS['host'] = options['host']
 
-            stats = gc(pages, page_size, interval, verbosity)
+            stats = gc(pages, page_size, interval, verbosity, wait_pages)
             print_stats(stats)
