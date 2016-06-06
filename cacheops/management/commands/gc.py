@@ -36,31 +36,6 @@ def pretty_time_delta(seconds):
     return '{}s{:0.2f}ms'.format(seconds, milliseconds)
 
 
-def top(display_count, pages, page_size):
-
-    cards = {}
-    start_time = time.time()
-
-    conj_keys = redis_client.scan_iter(match='conj:*', count=page_size)
-    for i, conj_key in enumerate(conj_keys):
-        # This operation is O(1)
-        # http://redis.io/commands/SCARD
-        card = redis_client.scard(conj_key)
-        cards[conj_key] = card
-        if pages and i % page_size > pages:
-            break
-
-    top_keys = sorted(cards, key=cards.get, reverse=True)
-    for conj_key in top_keys[:display_count]:
-        print('{}: {:,}'.format(conj_key, cards[conj_key]))
-
-    print('\nkeys={:,} pages={:,} in {}'.format(
-        len(cards),
-        len(cards) / page_size,
-        pretty_time_delta(time.time() - start_time),
-    ))
-
-
 def gc_conj_key(conj_key, max_pages, page_size, interval, wait_pages):
     cursor = 0
     pages = 0
@@ -165,11 +140,6 @@ class Command(BaseCommand):
             dest='host',
             help='Override the host setting.',
         ),
-        make_option(
-            '--top',
-            dest='top',
-            help='Show the top X largest conjunction sets.',
-        ),
     )
 
     def handle(self, *args, **options):
@@ -183,9 +153,7 @@ class Command(BaseCommand):
         interval = float(options['interval'])
         verbosity = options['verbosity']
 
-        if options['top']:
-            top(int(options['top']), pages, page_size)
-        elif options['conj']:
+        if options['conj']:
             stats = gc_conj_key(options['conj'], pages, page_size, interval, wait_pages)
             print_stats(stats)
         else:
