@@ -90,19 +90,19 @@ def largest_keys(display_count, max_pages, page_size):
         pages = sampled / page_size
 
         if sampled % page_size == 0:
-            print_largest_keys(sizes, sampled, pages, total_bytes / sampled)
+            print_largest_keys(sizes, sampled, pages, total_bytes, total_bytes / sampled)
 
         if max_pages and pages > max_pages:
             break
 
-    print_largest_keys(sizes, sampled, pages, total_bytes / sampled)
+    print_largest_keys(sizes, sampled, pages, total_bytes, total_bytes / sampled)
 
 
-def print_largest_keys(sizes, sampled, pages, avg):
+def print_largest_keys(sizes, sampled, pages, total_bytes, avg):
     for i, item in enumerate(sorted(sizes, reverse=True), 1):
         print('{:<3} {} {}'.format(str(i) + ')', item[1], sizeof_fmt(item[0])))
     print('\nAverage key size: {}'.format(sizeof_fmt(avg)))
-    print('{:,} keys sampled in {:,} pages'.format(sampled, pages))
+    print('{:,} keys {} sampled in {:,} pages'.format(sampled, sizeof_fmt(total_bytes), pages))
 
 
 class Command(BaseCommand):
