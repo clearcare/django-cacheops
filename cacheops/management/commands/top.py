@@ -101,7 +101,7 @@ def largest_keys(display_count, max_pages, page_size):
 def print_largest_keys(sizes, sampled, pages, avg):
     for i, item in enumerate(sorted(sizes, reverse=True), 1):
         print('{:<3} {} {}'.format(str(i) + ')', item[1], sizeof_fmt(item[0])))
-    print('Average key size: {}'.format(sizeof_fmt(avg)))
+    print('\nAverage key size: {}'.format(sizeof_fmt(avg)))
     print('{:,} keys sampled in {:,} pages'.format(sampled, pages))
 
 
