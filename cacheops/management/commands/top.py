@@ -65,7 +65,7 @@ def largest_keys(display_count, max_pages, page_size):
     pages = 0
 
     keys = redis_client.scan_iter(match='q:*', count=page_size)
-    for sampled, key in enumerate(keys):
+    for sampled, key in enumerate(keys, 1):
         data = redis_client.get(key)
         if data is None:
             continue
