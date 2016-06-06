@@ -95,10 +95,10 @@ def largest_keys(display_count, max_pages, page_size):
     print_largest_keys(sizes, sampled, pages)
 
 
-def print_largest_keys(sizes, sampled):
+def print_largest_keys(sizes, sampled, pages):
     for i, item in enumerate(sorted(sizes, reverse=True), 1):
         print('{:<3} {} {}'.format(str(i) + ')', item[1], sizeof_fmt(item[0])))
-    print('{:,} keys sampled'.format(sampled))
+    print('{:,} keys sampled in {:,} pages'.format(sampled, pages))
 
 
 class Command(BaseCommand):
