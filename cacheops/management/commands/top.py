@@ -63,6 +63,7 @@ def largest_keys(display_count, max_pages, page_size):
     sizes = []
     current_min = 0
     pages = 0
+    total_bytes = 0
 
     keys = redis_client.scan_iter(match='q:*', count=page_size)
     for sampled, key in enumerate(keys, 1):
@@ -70,6 +71,8 @@ def largest_keys(display_count, max_pages, page_size):
         if data is None:
             continue
         data_len = len(data)
+
+        total_bytes += data_len
 
         if len(sizes) < display_count:
             sizes.append((data_len, key))
@@ -84,20 +87,21 @@ def largest_keys(display_count, max_pages, page_size):
                 sizes[replace] = (data_len, key)
                 current_min = min(current_min, data_len)
 
-        pages = (sampled / page_size) + 1
+        pages = sampled / page_size
 
         if sampled % page_size == 0:
-            print_largest_keys(sizes, sampled, pages)
+            print_largest_keys(sizes, sampled, pages, total_bytes / sampled)
 
         if max_pages and pages > max_pages:
             break
 
-    print_largest_keys(sizes, sampled, pages)
+    print_largest_keys(sizes, sampled, pages, total_bytes / sampled)
 
 
-def print_largest_keys(sizes, sampled, pages):
+def print_largest_keys(sizes, sampled, pages, avg):
     for i, item in enumerate(sorted(sizes, reverse=True), 1):
         print('{:<3} {} {}'.format(str(i) + ')', item[1], sizeof_fmt(item[0])))
+    print('Average key size: {}'.format(sizeof_fmt(avg)))
     print('{:,} keys sampled in {:,} pages'.format(sampled, pages))
 
 
