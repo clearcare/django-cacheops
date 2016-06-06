@@ -84,9 +84,9 @@ def largest_keys(display_count, max_pages, page_size):
                 sizes[replace] = (data_len, key)
                 current_min = min(current_min, data_len)
 
-        pages = sampled / page_size
+        pages = (sampled / page_size) + 1
 
-        if sampled % page_size:
+        if sampled % page_size == 0:
             print_largest_keys(sizes, sampled, pages)
 
         if max_pages and pages > max_pages:
