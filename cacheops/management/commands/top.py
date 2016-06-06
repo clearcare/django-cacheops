@@ -58,13 +58,14 @@ def largest_sets(display_count, pages, page_size):
     ))
 
 
-def largest_keys(display_count, pages, page_size):
+def largest_keys(display_count, max_pages, page_size):
 
     sizes = []
     current_min = 0
+    pages = 0
 
     keys = redis_client.scan_iter(match='q:*', count=page_size)
-    for i, key in enumerate(keys):
+    for sampled, key in enumerate(keys):
         data = redis_client.get(key)
         if data is None:
             continue
@@ -83,11 +84,21 @@ def largest_keys(display_count, pages, page_size):
                 sizes[replace] = (data_len, key)
                 current_min = min(current_min, data_len)
 
-        if pages and i % page_size > pages:
+        pages = sampled / page_size
+
+        if sampled % page_size:
+            print_largest_keys(sizes, sampled, pages)
+
+        if max_pages and pages > max_pages:
             break
 
+    print_largest_keys(sizes, sampled, pages)
+
+
+def print_largest_keys(sizes, sampled):
     for i, item in enumerate(sorted(sizes, reverse=True), 1):
         print('{:<3} {} {}'.format(str(i) + ')', item[1], sizeof_fmt(item[0])))
+    print('{:,} keys sampled'.format(sampled))
 
 
 class Command(BaseCommand):
