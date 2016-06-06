@@ -1,5 +1,6 @@
 from __future__ import absolute_import, print_function
 
+import sys
 import time
 
 from optparse import make_option
@@ -33,27 +34,48 @@ def pretty_time_delta(seconds):
     return '{}s{:0.2f}ms'.format(seconds, milliseconds)
 
 
-def largest_sets(display_count, pages, page_size):
+def largest_sets(display_count, max_pages, page_size, verbose):
 
-    cards = {}
+    cards = []
     start_time = time.time()
+    current_min = 0
 
     conj_keys = redis_client.scan_iter(match='conj:*', count=page_size)
-    for i, conj_key in enumerate(conj_keys):
-        # This operation is O(1)
-        # http://redis.io/commands/SCARD
+    for sampled, conj_key in enumerate(conj_keys, 1):
         card = redis_client.scard(conj_key)
-        cards[conj_key] = card
-        if pages and i % page_size > pages:
+
+        if len(cards) < display_count:
+            cards.append((card, conj_key))
+            if current_min == 0:
+                current_min = card
+            else:
+                current_min = min(current_min, card)
+        elif card > current_min:
+            replace = None
+            for i, size in enumerate(cards):
+                if size[0] < card:
+                    replace = i
+                    break
+            if replace is not None:
+                cards[replace] = (card, conj_key)
+                current_min = min(current_min, card)
+
+        pages = sampled / page_size
+
+        if sampled % page_size == 0:
+            print_largest_sets(cards, sampled, pages, start_time)
+
+        if max_pages and pages > max_pages:
             break
 
-    top_keys = sorted(cards, key=cards.get, reverse=True)
-    for conj_key in top_keys[:display_count]:
-        print('{}: {:,}'.format(conj_key, cards[conj_key]))
+
+def print_largest_sets(cards, sampled, pages, page_size, start_time):
+    for i, item in enumerate(sorted(cards, reverse=True), 1):
+        print('{:<3} {} {:,}'.format(str(i) + ')', item[1], item[0]))
 
     print('\nkeys={:,} pages={:,} in {}'.format(
-        len(cards),
-        len(cards) / page_size,
+        sampled,
+        pages,
         pretty_time_delta(time.time() - start_time),
     ))
 
@@ -76,7 +98,10 @@ def largest_keys(display_count, max_pages, page_size):
 
         if len(sizes) < display_count:
             sizes.append((data_len, key))
-            current_min = min(current_min, data_len)
+            if current_min == 0:
+                current_min = data_len
+            else:
+                current_min = min(current_min, data_len)
         elif data_len > current_min:
             replace = None
             for i, size in enumerate(sizes):
@@ -116,9 +141,20 @@ class Command(BaseCommand):
         make_option(
             '--page-size',
             dest='page_size',
-            action='store',
             default=1000,
             help='Page size to use when calling the scan comands',
+        ),
+        make_option(
+            '--keys',
+            dest='keys',
+            action='store_true',
+            help='Find the largest keys',
+        ),
+        make_option(
+            '--sets',
+            dest='sets',
+            action='store_true',
+            help='Find the largest keys',
         ),
         make_option(
             '--display',
@@ -139,6 +175,13 @@ class Command(BaseCommand):
         if pages is not None:
             pages = int(pages)
 
+        display_count = int(options['display'])
         page_size = int(options['page_size'])
 
-        largest_keys(int(options['display']), pages, page_size)
+        if options['sets']:
+            largest_sets(display_count, pages, page_size)
+        elif options['keys']:
+            largest_keys(display_count, pages, page_size)
+        else:
+            print('Must specify --keys or --sets')
+            sys.exit(1)
