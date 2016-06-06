@@ -1,5 +1,7 @@
 from __future__ import absolute_import, print_function
 
+import json
+import logging
 import sys
 import time
 
@@ -10,6 +12,9 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from cacheops.redis import load_script, redis_client
+
+
+logger = logging.getLogger(__name__)
 
 
 def sizeof_fmt(num, suffix='B'):
@@ -78,7 +83,7 @@ def gc(max_pages, page_size, interval, verbosity, wait_pages):
             stats['ips'] = stats['processed'] / float(stats['runtime'])
             stats['pages'] += conj_stats['pages']
         pages += 1
-        if verbosity > 1 and pages % 100:
+        if verbosity and pages % 100:
             print_stats(stats)
         if cursor == 0 or (max_pages is not None and max_pages > pages):
             break
@@ -100,6 +105,10 @@ def print_stats(stats):
     print('Freed: {}'.format(sizeof_fmt(stats['bytes'])))
     print('Time: {}'.format(pretty_time_delta(stats['runtime'])))
     print('')
+
+
+def log_stats(stats):
+    logger.info(json.dumps(stats))
 
 
 class Command(BaseCommand):
@@ -151,7 +160,7 @@ class Command(BaseCommand):
         page_size = int(options['page_size'])
         wait_pages = int(options['wait_pages'])
         interval = float(options['interval'])
-        verbosity = options['verbosity']
+        verbosity = options['verbosity'] > 1
 
         if options['conj']:
             stats = gc_conj_key(options['conj'], pages, page_size, interval, wait_pages)
@@ -165,4 +174,7 @@ class Command(BaseCommand):
                 settings.CACHEOPS_REDIS['host'] = options['host']
 
             stats = gc(pages, page_size, interval, verbosity, wait_pages)
-            print_stats(stats)
+            if verbosity:
+                print_stats(stats)
+            else:
+                log_stats(stats)

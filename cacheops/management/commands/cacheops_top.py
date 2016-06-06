@@ -183,5 +183,5 @@ class Command(BaseCommand):
         elif options['keys']:
             largest_keys(display_count, pages, page_size)
         else:
-            print('Must specify --keys or --sets')
+            print('Must specify --keys or --sets', file=sys.stderr)
             sys.exit(1)
