@@ -84,8 +84,8 @@ def largest_keys(display_count, pages, page_size):
         if pages and i % page_size > pages:
             break
 
-    for i, item in enumerate(sorted(sizes, reverse=True)):
-        print('{02} {} {}'.format(i, item[1], sizeof_fmt(item[0])))
+    for i, item in enumerate(sorted(sizes, reverse=True), 1):
+        print('{:<3} {} {}'.format(str(i) + ')', item[1], sizeof_fmt(item[0])))
 
 
 class Command(BaseCommand):
@@ -124,4 +124,4 @@ class Command(BaseCommand):
 
         page_size = int(options['page_size'])
 
-        largest_keys(int(options['top']), pages, page_size)
+        largest_keys(int(options['display']), pages, page_size)
