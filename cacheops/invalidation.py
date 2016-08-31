@@ -11,6 +11,7 @@ except ImportError:
 
 from .utils import non_proxy, NOT_SERIALIZED_FIELDS
 from .redis import redis_client, handle_connection_failure, load_script
+from .signals import cache_invalidation
 from .transaction import queue_when_in_transaction
 
 
@@ -23,10 +24,17 @@ def invalidate_dict(model, obj_dict):
     if no_invalidation.active:
         return
     model = non_proxy(model)
-    load_script('invalidate')(args=[
+    invalidate = load_script('invalidate')
+    deleted = invalidate(args=[
         model._meta.db_table,
         json.dumps(obj_dict, default=str)
     ])
+    cache_invalidation.send(
+        sender=model,
+        table=model._meta.db_table,
+        obj_id=obj_dict.get('id'),
+        deleted=deleted,
+    )
 
 
 def invalidate_obj(obj):
