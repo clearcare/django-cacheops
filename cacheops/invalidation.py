@@ -9,6 +9,7 @@ try:
 except ImportError:
     from django.db.models.expressions import Expression
 
+from .conf import model_name
 from .utils import non_proxy, NOT_SERIALIZED_FIELDS
 from .redis import redis_client, handle_connection_failure, load_script
 from .signals import cache_invalidation
@@ -31,7 +32,7 @@ def invalidate_dict(model, obj_dict):
     ])
     cache_invalidation.send(
         sender=model,
-        table=model._meta.db_table,
+        model_name=model_name(model),
         obj_id=obj_dict.get('id'),
         deleted=deleted,
     )

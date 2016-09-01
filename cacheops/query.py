@@ -269,9 +269,9 @@ class QuerySetMixin(object):
             cache_data, ttl = redis_client.get_with_ttl(cache_key)
             cache_read.send(
                 sender=self.model,
-                func=None,
+                func=self._cacheprofile['name'],
                 hit=cache_data is not None,
-                age=model_profile(self.model)['timeout'] - ttl,
+                age=self._cacheprofile['timeout'] - ttl,
                 cache_key=cache_key,
             )
             if cache_data is not None:

@@ -27,6 +27,14 @@ settings = Settings()
 
 
 @memoize
+def model_name(model):
+    app = model._meta.app_label
+    # module_name is fallback for Django 1.5-
+    model_name = getattr(model._meta, 'model_name', None) or model._meta.module_name
+    return '%s.%s' % (app, model_name)
+
+
+@memoize
 def prepare_profiles():
     """
     Prepares a dict 'app.model' -> profile, for use in model_profile()
@@ -64,13 +72,11 @@ def model_profile(model):
     Returns cacheops profile for a model
     """
     model_profiles = prepare_profiles()
-
     app = model._meta.app_label
-    # module_name is fallback for Django 1.5-
-    model_name = getattr(model._meta, 'model_name', None) or model._meta.module_name
-    app_model = '%s.%s' % (app, model_name)
+    app_model = model_name(model)
+
     for guess in (app_model, '%s.*' % app, '*.*'):
-        if guess in model_profiles:
-            return model_profiles[guess]
-    else:
-        return None
+        profile = model_profiles.get(guess)
+        if profile:
+            profile['name'] = app_model
+            return profile
