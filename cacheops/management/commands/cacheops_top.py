@@ -5,19 +5,20 @@ import time
 
 from optparse import make_option
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from cacheops.redis import redis_client
 from cacheops.management.util import pretty_time_delta, sizeof_fmt
 
 
-def largest_sets(display_count, max_pages, page_size):
+def iter_set(match, display_count, max_pages, page_size):
 
     cards = []
     start_time = time.time()
     current_min = 0
 
-    conj_keys = redis_client.scan_iter(match='conj:*', count=page_size)
+    conj_keys = redis_client.scan_iter(match=match, count=page_size)
     for sampled, conj_key in enumerate(conj_keys, 1):
         card = redis_client.scard(conj_key)
 
@@ -129,13 +130,19 @@ class Command(BaseCommand):
             help='Find the largest keys',
         ),
         make_option(
-            '--sets',
-            dest='sets',
+            '--conjs',
+            dest='conjs',
             action='store_true',
-            help='Find the largest keys',
+            help='Find the largest conjuction sets',
         ),
         make_option(
-            '--display',
+            '--schemes',
+            dest='schemes',
+            action='store_true',
+            help='Find the largest schemes',
+        ),
+        make_option(
+           '--display',
             dest='display',
             default=20,
             help='Set the number of items to display',
@@ -156,8 +163,13 @@ class Command(BaseCommand):
         display_count = int(options['display'])
         page_size = int(options['page_size'])
 
-        if options['sets']:
-            largest_sets(display_count, pages, page_size)
+        if options['host']:
+            settings.CACHEOPS_REDIS['host'] = options['host']
+
+        if options['conjs']:
+            iter_set('conj:*', display_count, pages, page_size)
+        elif options['schemes']:
+            iter_set('schemes:*', display_count, pages, page_size)
         elif options['keys']:
             largest_keys(display_count, pages, page_size)
         else:
