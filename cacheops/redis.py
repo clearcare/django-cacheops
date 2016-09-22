@@ -8,6 +8,13 @@ from django.core.exceptions import ImproperlyConfigured
 
 from .conf import settings
 
+try:
+    import rediscluster
+except ImportError:
+    HAS_REDISCLUSTER = False
+else:
+    HAS_REDISCLUSTER = True
+
 
 if settings.CACHEOPS_DEGRADE_ON_FAILURE:
     @decorator
@@ -26,11 +33,16 @@ class SafeRedis(redis.StrictRedis):
     get = handle_connection_failure(redis.StrictRedis.get)
 
     def get_with_ttl(self, name):
-        txn = redis_client.pipeline()
-        cache_data = redis_client.get(name)
-        ttl = redis_client.ttl(name)
+        txn = self.pipeline()
+        cache_data = self.get(name)
+        ttl = self.ttl(name)
         txn.execute()
         return cache_data, ttl
+
+
+if HAS_REDISCLUSTER:
+    class ClusterRedis(rediscluster.StrictRedisCluster):
+        pass
 
 
 class LazyRedis(object):
@@ -38,7 +50,13 @@ class LazyRedis(object):
         if not settings.CACHEOPS_REDIS:
             raise ImproperlyConfigured('You must specify CACHEOPS_REDIS setting to use cacheops')
 
-        Redis = SafeRedis if settings.CACHEOPS_DEGRADE_ON_FAILURE else redis.StrictRedis
+        if hasattr(settings, 'CACHEOPS_REDIS_ENGINE') and settings.CACHEOPS_REDIS_ENGINE:
+            Redis = eval(settings.CACHEOPS_REDIS_ENGINE)
+        else:
+            # For backwards compatiablity. CACHEOPS_DEGRADE_ON_FAILURE will be
+            # deprecated in future releases.
+            Redis = SafeRedis if settings.CACHEOPS_DEGRADE_ON_FAILURE else redis.StrictRedis
+
         # Allow client connection settings to be specified by a URL.
         if isinstance(settings.CACHEOPS_REDIS, six.string_types):
             client = Redis.from_url(settings.CACHEOPS_REDIS)

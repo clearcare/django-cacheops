@@ -1,5 +1,6 @@
 local db_table = ARGV[1]
 local obj = cjson.decode(ARGV[2])
+local hash_tag = ARGV[3]
 
 
 -- Utility functions
@@ -9,7 +10,12 @@ local conj_cache_key = function (db_table, scheme, obj)
         table.insert(parts, field .. '=' .. tostring(obj[field]))
     end
 
-    return 'conj:' .. db_table .. ':' .. table.concat(parts, '&')
+    local prefix = 'conj:'
+    if hash_tag ~= nil then
+        prefix = hash_tag .. prefix
+    end
+
+    return prefix .. db_table .. ':' .. table.concat(parts, '&')
 end
 
 local call_in_chunks = function (command, args)
@@ -22,7 +28,15 @@ end
 
 -- Calculate conj keys
 local conj_keys = {}
-local schemes = redis.call('smembers', 'schemes:' .. db_table)
+
+local prefix = 'schemes:'
+if hash_tag ~= nil then
+    prefix = hash_tag .. prefix
+end
+
+redis.log(redis.LOG_NOTICE, prefix .. db_table)
+
+local schemes = redis.call('smembers',  prefix .. db_table)
 for _, scheme in ipairs(schemes) do
     table.insert(conj_keys, conj_cache_key(db_table, scheme, obj))
 end

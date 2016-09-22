@@ -28,10 +28,26 @@ from .invalidation import invalidate_obj, invalidate_dict, no_invalidation
 from .transaction import in_transaction
 from .signals import cache_read
 
+import core  # noqa
+
 
 __all__ = ('cached_as', 'cached_view_as', 'install_cacheops')
 
 _local_get_cache = {}
+
+
+def tag_cache_key(cache_key):
+
+    if hasattr(settings, 'CACHEOPS_HASH_CALLBACK') and settings.CACHEOPS_HASH_CALLBACK:
+        hash_tag = eval(settings.CACHEOPS_HASH_CALLBACK.format('None')) \
+            if settings.CACHEOPS_HASH_CALLBACK else None
+    else:
+        return None, None
+
+    if hash_tag == -1:
+        return None, None
+
+    return hash_tag, '{{{}}}{}'.format(hash_tag, cache_key)
 
 
 @handle_connection_failure
@@ -40,12 +56,21 @@ def cache_thing(cache_key, data, cond_dnfs, timeout):
     Writes data to cache and creates appropriate invalidators.
     """
     assert not in_transaction()
+    assert cache_key.startswith('{'), cache_key
+
+    print(cache_key, data, cond_dnfs, timeout)
+
+    hash_tag, cache_key = tag_cache_key(cache_key)
+    if hash_tag is None:
+        return
+
     load_script('cache_thing', settings.CACHEOPS_LRU)(
         keys=[cache_key],
         args=[
             pickle.dumps(data, -1),
             json.dumps(cond_dnfs, default=str),
-            timeout
+            hash_tag,
+            timeout,
         ]
     )
 
@@ -89,20 +114,29 @@ def cached_as(*samples, **kwargs):
             if in_transaction():
                 return func(*args, **kwargs)
 
+            cache_data = None
             cache_key = 'as:' + key_func(func, args, kwargs, key_extra)
-            cache_data, ttl = redis_client.get_with_ttl(cache_key)
-            cache_read.send(
-                sender=None,
-                func=func,
-                hit=cache_data is not None,
-                age=timeout - ttl,
-                cache_key=cache_key,
-            )
-            if cache_data is not None:
-                return pickle.loads(cache_data)
+            hash_tag, cache_key = tag_cache_key(cache_key)
+            if hash_tag is not None:
+                cache_data = redis_client.get(cache_key)
+
+                # XXX: Fix this
+                ttl = 100
+
+                cache_read.send(
+                    sender=None,
+                    func=func,
+                    hit=cache_data is not None,
+                    age=timeout - ttl,
+                    cache_key=cache_key,
+                )
+                if cache_data is not None:
+                    return pickle.loads(cache_data)
 
             result = func(*args, **kwargs)
-            cache_thing(cache_key, result, cond_dnfs, timeout)
+            print(cache_key, result, cond_dnfs, timeout)
+            if hash_tag is not None:
+                cache_thing(cache_key, result, cond_dnfs, timeout)
             return result
 
         return wrapper
@@ -165,7 +199,13 @@ class QuerySetMixin(object):
         if hasattr(self, 'flat'):
             md.update(str(self.flat))
 
-        return 'q:%s' % md.hexdigest()
+        cache_key = 'q:%s' % md.hexdigest()
+
+        hash_tag, cache_key = tag_cache_key(cache_key)
+        if hash_tag is None:
+            return
+
+        return cache_key
 
     def _cache_results(self, cache_key, results):
         cond_dnfs = dnfs(self)
@@ -264,9 +304,11 @@ class QuerySetMixin(object):
             return self._no_monkey.iterator(self)
 
         cache_key = self._cache_key()
-        if not self._cacheconf['write_only'] and not self._for_write:
+        if cache_key is not None and not self._cacheconf['write_only'] and not self._for_write:
             # Trying get data from cache
-            cache_data, ttl = redis_client.get_with_ttl(cache_key)
+            cache_data = redis_client.get(cache_key)
+            # XXX: Fix this!!
+            ttl = 100
             cache_read.send(
                 sender=self.model,
                 func=self._cacheprofile['name'],
@@ -284,7 +326,8 @@ class QuerySetMixin(object):
             for obj in self._no_monkey.iterator(self):
                 self._result_cache.append(obj)
                 yield obj
-            self._cache_results(cache_key, self._result_cache)
+            if cache_key is not None:
+                self._cache_results(cache_key, self._result_cache)
 
         return iterate()
 

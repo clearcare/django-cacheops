@@ -1,8 +1,8 @@
 local key = KEYS[1]
 local data = ARGV[1]
 local dnfs = cjson.decode(ARGV[2])
-local timeout = tonumber(ARGV[3])
-
+local hash_tag = ARGV[3]
+local timeout = tonumber(ARGV[4])
 
 -- Write data to cache
 redis.call('setex', key, timeout, data)
@@ -24,7 +24,12 @@ local conj_cache_key = function (db_table, conj)
         table.insert(parts, eq[1] .. '=' .. tostring(eq[2]))
     end
 
-    return 'conj:' .. db_table .. ':' .. table.concat(parts, '&')
+    local prefix = 'conj:'
+    if hash_tag ~= nil then
+        prefix = '{' .. hash_tag .. '}' .. prefix
+    end
+
+    return prefix .. db_table .. ':' .. table.concat(parts, '&')
 end
 
 
@@ -34,7 +39,13 @@ for _, disj_pair in ipairs(dnfs) do
     local disj = disj_pair[2]
     for _, conj in ipairs(disj) do
         -- Ensure scheme is known
-        redis.call('sadd', 'schemes:' .. db_table, conj_schema(conj))
+        --
+        local prefix = 'schemes:'
+        if hash_tag ~= nil then
+            prefix = '{' .. hash_tag .. '}' .. prefix
+        end
+
+        redis.call('sadd', prefix .. db_table, conj_schema(conj))
 
         -- Add new cache_key to list of dependencies
         local conj_key = conj_cache_key(db_table, conj)

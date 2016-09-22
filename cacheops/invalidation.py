@@ -9,11 +9,13 @@ try:
 except ImportError:
     from django.db.models.expressions import Expression
 
-from .conf import model_name
+from .conf import model_name, settings
 from .utils import non_proxy, NOT_SERIALIZED_FIELDS
 from .redis import redis_client, handle_connection_failure, load_script
 from .signals import cache_invalidation
 from .transaction import queue_when_in_transaction
+
+import core  # NOQA
 
 
 __all__ = ('invalidate_obj', 'invalidate_model', 'invalidate_all', 'no_invalidation')
@@ -25,11 +27,23 @@ def invalidate_dict(model, obj_dict):
     if no_invalidation.active:
         return
     model = non_proxy(model)
+
+    hash_tag = None
+    if settings.CACHEOPS_HASH_CALLBACK:
+        # '{' must be escaped. This wraps what the callback returns in a single {}'
+        hash_tag = '{{{}}}'.format(eval(settings.CACHEOPS_HASH_CALLBACK.format('obj_dict')))
+
+    print(model._meta.db_table, json.dumps(obj_dict, default=str), hash_tag)
+
     invalidate = load_script('invalidate')
-    deleted = invalidate(args=[
-        model._meta.db_table,
-        json.dumps(obj_dict, default=str)
-    ])
+    deleted = invalidate(
+        keys=[hash_tag],
+        args=[
+            model._meta.db_table,
+            json.dumps(obj_dict, default=str),
+            hash_tag,
+        ],
+    )
     cache_invalidation.send(
         sender=model,
         model_name=model_name(model),
