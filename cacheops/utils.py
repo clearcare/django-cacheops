@@ -168,6 +168,24 @@ def cached_view_fab(_cached):
     return cached_view
 
 
+import datetime
+from contextlib import contextmanager
+
+def elapser(start):
+    # Returns the elapsed time in milliseconds
+    # https://github.com/antirez/redis/blob/unstable/src/server.c#L396
+    now = datetime.datetime.utcnow() - start
+    m = now.seconds * 1000000
+    m += now.microseconds
+    return m
+
+# http://stackoverflow.com/questions/7370801/measure-time-elapsed-in-python
+
+@contextmanager
+def elapsed_timer():
+    start = datetime.datetime.utcnow()
+    yield lambda: elapser(start)
+
 ### Whitespace handling for template tags
 
 from django.utils.safestring import mark_safe

@@ -10,7 +10,7 @@ except ImportError:
     from django.db.models.expressions import Expression
 
 from .conf import model_name
-from .utils import non_proxy, NOT_SERIALIZED_FIELDS
+from .utils import non_proxy, NOT_SERIALIZED_FIELDS, elapsed_timer
 from .redis import redis_client, handle_connection_failure, load_script
 from .signals import cache_invalidation
 from .transaction import queue_when_in_transaction
@@ -26,15 +26,19 @@ def invalidate_dict(model, obj_dict):
         return
     model = non_proxy(model)
     invalidate = load_script('invalidate')
-    deleted = invalidate(args=[
-        model._meta.db_table,
-        json.dumps(obj_dict, default=str)
-    ])
+
+    with elapsed_timer() as duration:
+        deleted = invalidate(args=[
+            model._meta.db_table,
+            json.dumps(obj_dict, default=str)
+        ])
+
     cache_invalidation.send(
         sender=model,
         model_name=model_name(model),
         obj_id=obj_dict.get('id'),
         deleted=deleted,
+        duration=duration(),
     )
 
 
