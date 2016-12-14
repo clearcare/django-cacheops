@@ -172,7 +172,8 @@ import datetime
 from contextlib import contextmanager
 
 def elapser(start):
-    # Returns the elapsed time in milliseconds
+    # Returns the elapsed time in microseconds
+    # 1s = 1000000 us
     # https://github.com/antirez/redis/blob/unstable/src/server.c#L396
     now = datetime.datetime.utcnow() - start
     m = now.seconds * 1000000
