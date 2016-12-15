@@ -5,10 +5,30 @@ import time
 
 from optparse import make_option
 
+from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from cacheops.redis import redis_client
 from cacheops.management.util import pretty_time_delta, sizeof_fmt
+
+
+def conj_stats(conj_set, display_count, max_pages, page_size):
+    items = 0
+    sampled = 0
+    empty = 0
+    print('conj:{}:*'.format(conj_set))
+    with open('{}.sample'.format(conj_set), 'w') as f:
+        conj_keys = redis_client.scan_iter(match='conj:{}:*'.format(conj_set), count=page_size)
+        for sampled, conj_key in enumerate(conj_keys, 1):
+            card = redis_client.scard(conj_key)
+            f.write('{} {}\n'.format(card, conj_key))
+            items += card
+            if card == 0:
+                empty += 1
+            if sampled % page_size == 0:
+                print(sampled)
+
+    print(sampled, items, empty)
 
 
 def largest_sets(display_count, max_pages, page_size):
@@ -135,6 +155,11 @@ class Command(BaseCommand):
             help='Find the largest keys',
         ),
         make_option(
+            '--conj',
+            dest='conj',
+            help='Conjuction set stats',
+        ),
+        make_option(
             '--display',
             dest='display',
             default=20,
@@ -156,7 +181,15 @@ class Command(BaseCommand):
         display_count = int(options['display'])
         page_size = int(options['page_size'])
 
-        if options['sets']:
+        if options['host']:
+            settings.CACHEOPS_REDIS['host'] = options['host']
+            settings.CACHEOPS_REDIS['db'] = 0
+
+        print(settings.CACHEOPS_REDIS)
+
+        if options['conj']:
+            conj_stats(options['conj'], display_count, pages, page_size)
+        elif options['sets']:
             largest_sets(display_count, pages, page_size)
         elif options['keys']:
             largest_keys(display_count, pages, page_size)
