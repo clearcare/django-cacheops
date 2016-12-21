@@ -1002,6 +1002,7 @@ class SignalsTests(BaseTestCase):
             'func': None,
             'hit': False,
             'age': 3602L,
+            'name': 'tests.category',
         }])
 
         # Hit
@@ -1013,6 +1014,7 @@ class SignalsTests(BaseTestCase):
             'func': None,
             'hit': True,
             'age': 0L,
+            'name': 'tests.category',
         }])
 
     def test_cached_as(self):
