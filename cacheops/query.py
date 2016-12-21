@@ -19,7 +19,7 @@ try:
 except ImportError:
     MAX_GET_RESULTS = None
 
-from .conf import model_profile, settings, ALL_OPS
+from .conf import model_name, model_profile, settings, ALL_OPS
 from .utils import monkey_mix, stamp_fields, func_cache_key, cached_view_fab, \
         family_has_profile, get_model_name
 from .redis import redis_client, handle_connection_failure, load_script
@@ -119,6 +119,7 @@ class QuerySetMixin(object):
         profile = model_profile(self.model)
         if profile:
             self._cacheconf = profile.copy()
+            self._cacheconf['name'] = model_name(self.model)
             self._cacheconf['write_only'] = False
         return profile
 
@@ -269,9 +270,9 @@ class QuerySetMixin(object):
             cache_data, ttl = redis_client.get_with_ttl(cache_key)
             cache_read.send(
                 sender=self.model,
-                func=self._cacheprofile['name'],
+                func=self._cacheconf['name'],
                 hit=cache_data is not None,
-                age=self._cacheprofile['timeout'] - ttl,
+                age=self._cacheconf['timeout'] - ttl,
                 cache_key=cache_key,
             )
             if cache_data is not None:

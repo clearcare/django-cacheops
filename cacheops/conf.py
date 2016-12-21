@@ -78,5 +78,4 @@ def model_profile(model):
     for guess in (app_model, '%s.*' % app, '*.*'):
         profile = model_profiles.get(guess)
         if profile:
-            profile['name'] = app_model
             return profile
