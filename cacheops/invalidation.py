@@ -36,7 +36,7 @@ def invalidate_dict(model, obj_dict):
     cache_invalidation.send(
         sender=model,
         model_name=model_name(model),
-        obj_id=obj_dict.get('id'),
+        obj_dict=obj_dict,
         deleted=deleted,
         duration=duration(),
     )

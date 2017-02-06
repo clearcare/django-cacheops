@@ -16,7 +16,7 @@ from cacheops import invalidate_all, invalidate_model, invalidate_obj, no_invali
 from cacheops import invalidate_fragment
 from cacheops.templatetags.cacheops import register
 from cacheops.transaction import transaction_state
-from cacheops.signals import cache_read
+from cacheops.signals import cache_read, cache_invalidation
 
 from .models import *
 
@@ -1041,8 +1041,32 @@ class SignalsTests(BaseTestCase):
         }])
 
 
-# Utilities
+class InvalidationSignalsTests(BaseTestCase):
+    def setUp(self):
+        super(InvalidationSignalsTests, self).setUp()
 
+        def set_signal(signal=None, **kwargs):
+            self.signal_calls.append(kwargs)
+
+        self.signal_calls = []
+        cache_invalidation.connect(set_signal, dispatch_uid=1, weak=False)
+
+    def tearDown(self):
+        super(InvalidationSignalsTests, self).tearDown()
+        cache_invalidation.disconnect(dispatch_uid=1)
+
+    def test_queryset(self):
+        test_model = Category.objects.create(title="foo")
+        Category.objects.cache().get(id=test_model.id)
+        signal_event = self.signal_calls[0]
+        self.assertEqual(None, signal_event['deleted'])
+        self.assertTrue(signal_event['duration'] > 0)
+        self.assertEqual(Category, signal_event['sender'])
+        self.assertEqual({u'id': 1, 'title': 'foo'}, signal_event['obj_dict'])
+        self.assertEqual('tests.category', signal_event['model_name'])
+
+
+# Utilities
 def _make_inc(deco=lambda x: x):
     calls = [0]
 
