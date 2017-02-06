@@ -999,10 +999,9 @@ class SignalsTests(BaseTestCase):
         del self.signal_calls[0]['cache_key']
         self.assertEqual(self.signal_calls, [{
             'sender': Category,
-            'func': None,
+            'func': 'tests.m2mwithcharid',
             'hit': False,
             'age': 3602L,
-            'name': 'tests.category',
         }])
 
         # Hit
@@ -1011,10 +1010,9 @@ class SignalsTests(BaseTestCase):
         del self.signal_calls[0]['cache_key']
         self.assertEqual(self.signal_calls, [{
             'sender': Category,
-            'func': None,
+            'func': 'tests.m2mwithcharid',
             'hit': True,
             'age': 0L,
-            'name': 'tests.category',
         }])
 
     def test_cached_as(self):
