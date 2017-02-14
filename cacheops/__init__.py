@@ -1,5 +1,5 @@
 VERSION = (2, 4, 2)
-CC_VERSION = 'cc2'
+CC_VERSION = 'cc7'
 __version__ = '{}-{}'.format(
     '.'.join(map(str, VERSION if VERSION[-1] else VERSION[:2])), CC_VERSION)
 
