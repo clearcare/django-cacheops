@@ -1,8 +1,13 @@
 local key = KEYS[1]
 local data = ARGV[1]
 local dnfs = cjson.decode(ARGV[2])
-local hash_tag = ARGV[3]
-local timeout = tonumber(ARGV[4])
+local timeout = tonumber(ARGV[3])
+local hash_tag = ARGV[4]
+if hash_tag == 'None' then
+    hash_tag = nil
+end
+-- redis.log(redis.LOG_NOTICE, hash_tag)
+
 
 -- Write data to cache
 redis.call('setex', key, timeout, data)

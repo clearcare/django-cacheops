@@ -33,9 +33,12 @@ class SafeRedis(redis.StrictRedis):
     get = handle_connection_failure(redis.StrictRedis.get)
 
     def get_with_ttl(self, name):
-        txn = self.pipeline()
-        cache_data = self.get(name)
-        ttl = self.ttl(name)
+        txn = redis_client.pipeline()
+        cache_data = redis_client.get(name)
+        ttl = redis_client.ttl(name)
+        # txn = self.pipeline()
+        # cache_data = self.get(name)
+        # ttl = self.ttl(name)
         txn.execute()
         return cache_data, ttl
 
@@ -50,11 +53,9 @@ class LazyRedis(object):
         if not settings.CACHEOPS_REDIS:
             raise ImproperlyConfigured('You must specify CACHEOPS_REDIS setting to use cacheops')
 
-        if hasattr(settings, 'CACHEOPS_REDIS_ENGINE') and settings.CACHEOPS_REDIS_ENGINE:
+        if settings.CACHEOPS_CLUSTERED_REDIS:
             Redis = eval(settings.CACHEOPS_REDIS_ENGINE)
         else:
-            # For backwards compatiablity. CACHEOPS_DEGRADE_ON_FAILURE will be
-            # deprecated in future releases.
             Redis = SafeRedis if settings.CACHEOPS_DEGRADE_ON_FAILURE else redis.StrictRedis
 
         # Allow client connection settings to be specified by a URL.

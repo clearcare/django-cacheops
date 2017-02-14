@@ -15,8 +15,6 @@ from .redis import redis_client, handle_connection_failure, load_script
 from .signals import cache_invalidation
 from .transaction import queue_when_in_transaction
 
-import core  # NOQA
-
 
 __all__ = ('invalidate_obj', 'invalidate_model', 'invalidate_all', 'no_invalidation')
 
@@ -27,24 +25,31 @@ def invalidate_dict(model, obj_dict):
     if no_invalidation.active:
         return
     model = non_proxy(model)
+    invalidate = load_script('invalidate')
 
     hash_tag = None
-    if settings.CACHEOPS_HASH_CALLBACK:
-        # '{' must be escaped. This wraps what the callback returns in a single {}'
-        hash_tag = '{{{}}}'.format(eval(settings.CACHEOPS_HASH_CALLBACK.format('obj_dict')))
+    if settings.CACHEOPS_CLUSTERED_REDIS:
+        if hasattr(settings, 'CACHEOPS_HASH_CALLBACK') and settings.CACHEOPS_HASH_CALLBACK:
+            # '{' must be escaped. This wraps what the callback returns in a single {}'
+            hash_tag = '{{{}}}'.format(eval(settings.CACHEOPS_HASH_CALLBACK.format('obj_dict')))
 
-    print(model._meta.db_table, json.dumps(obj_dict, default=str), hash_tag)
+        # print(model._meta.db_table, json.dumps(obj_dict, default=str), hash_tag)
 
-    invalidate = load_script('invalidate')
     with elapsed_timer() as duration:
-        deleted = invalidate(
-            keys=[hash_tag],
-            args=[
+        if hash_tag:
+            deleted = invalidate(
+                keys=[hash_tag],
+                args=[
+                    model._meta.db_table,
+                    json.dumps(obj_dict, default=str),
+                    hash_tag,
+                ],
+            )
+        else:
+            deleted = invalidate(args=[
                 model._meta.db_table,
-                json.dumps(obj_dict, default=str),
-                hash_tag,
-            ],
-        )
+                json.dumps(obj_dict, default=str)
+            ])
 
     cache_invalidation.send(
         sender=model,

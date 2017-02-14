@@ -1,6 +1,10 @@
 local db_table = ARGV[1]
 local obj = cjson.decode(ARGV[2])
 local hash_tag = ARGV[3]
+if hash_tag == 'None' then
+    hash_tag = nil
+end
+-- redis.log(redis.LOG_NOTICE, hash_tag)
 
 
 -- Utility functions

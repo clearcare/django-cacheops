@@ -14,6 +14,8 @@ class Settings(object):
     CACHEOPS_DEFAULTS = {}
     CACHEOPS = {}
     CACHEOPS_LRU = False
+    CACHEOPS_DEGRADE_ON_FAILURE = False
+    CACHEOPS_CLUSTERED_REDIS = False
     CACHEOPS_REDIS_ENGINE = None
     CACHEOPS_HASHTAG_CALLBACK = None
     FILE_CACHE_DIR = '/tmp/cacheops_file_cache'
