@@ -15,6 +15,7 @@ __all__ = ('cache', 'cached', 'cached_view', 'file_cache', 'CacheMiss', 'FileCac
 class CacheMiss(Exception):
     pass
 
+
 class CacheKey(str):
     @classmethod
     def make(cls, value, cache=None, timeout=None):
@@ -31,6 +32,7 @@ class CacheKey(str):
 
     def delete(self):
         self.cache.delete(self)
+
 
 class BaseCache(object):
     """

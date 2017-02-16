@@ -53,7 +53,7 @@ class LazyRedis(object):
         if not settings.CACHEOPS_REDIS:
             raise ImproperlyConfigured('You must specify CACHEOPS_REDIS setting to use cacheops')
 
-        if settings.CACHEOPS_CLUSTERED_REDIS:
+        if settings.CACHEOPS_CLUSTERED_REDIS and False:
             Redis = eval(settings.CACHEOPS_REDIS_ENGINE)
         else:
             Redis = SafeRedis if settings.CACHEOPS_DEGRADE_ON_FAILURE else redis.StrictRedis

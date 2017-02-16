@@ -115,3 +115,5 @@ SECRET_KEY = 'abc'
 
 # Required in Django 1.9
 TEMPLATES = [{'BACKEND': 'django.template.backends.django.DjangoTemplates'}]
+CACHEOPS_CLUSTERED_REDIS = True
+CACHEOPS_HASH_TAG_CALLBACK = 'tests.tests_clustered.hashkey_callback'

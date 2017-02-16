@@ -4,7 +4,7 @@ local hash_tag = ARGV[3]
 if hash_tag == 'None' then
     hash_tag = nil
 end
--- redis.log(redis.LOG_NOTICE, hash_tag)
+-- redis.log(redis.LOG_NOTICE, 'inval' .. hash_tag)
 
 
 -- Utility functions
@@ -16,7 +16,7 @@ local conj_cache_key = function (db_table, scheme, obj)
 
     local prefix = 'conj:'
     if hash_tag ~= nil then
-        prefix = hash_tag .. prefix
+        prefix = '{' .. hash_tag .. '}' .. prefix
     end
 
     return prefix .. db_table .. ':' .. table.concat(parts, '&')
@@ -35,7 +35,7 @@ local conj_keys = {}
 
 local prefix = 'schemes:'
 if hash_tag ~= nil then
-    prefix = hash_tag .. prefix
+    prefix = '{' .. hash_tag .. '}' .. prefix
 end
 
 redis.log(redis.LOG_NOTICE, prefix .. db_table)

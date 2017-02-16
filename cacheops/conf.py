@@ -4,6 +4,7 @@ from funcy import memoize, merge
 
 from django.conf import settings as base_settings
 from django.core.exceptions import ImproperlyConfigured
+from django.utils.module_loading import import_string
 
 
 ALL_OPS = {'get', 'fetch', 'count', 'exists'}
@@ -17,7 +18,7 @@ class Settings(object):
     CACHEOPS_DEGRADE_ON_FAILURE = False
     CACHEOPS_CLUSTERED_REDIS = False
     CACHEOPS_REDIS_ENGINE = None
-    CACHEOPS_HASHTAG_CALLBACK = None
+    CACHEOPS_HASH_TAG_CALLBACK = None
     FILE_CACHE_DIR = '/tmp/cacheops_file_cache'
     FILE_CACHE_TIMEOUT = 60*60*24*30
 
@@ -83,3 +84,14 @@ def model_profile(model):
         if profile:
             profile['name'] = app_model
             return profile
+
+@memoize
+def get_hash_tag_callback():
+    func = None
+    if base_settings.CACHEOPS_CLUSTERED_REDIS:
+        try:
+            func = import_string(settings.CACHEOPS_HASH_TAG_CALLBACK)
+            assert callable(func)
+        except Exception:
+            raise Exception("If using clustered Redis you must provide a hashtag callback function.")
+    return func
