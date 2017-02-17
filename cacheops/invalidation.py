@@ -9,7 +9,7 @@ try:
 except ImportError:
     from django.db.models.expressions import Expression
 
-from .conf import model_name, settings, get_hash_tag_callback
+from .conf import model_name, settings
 from .utils import non_proxy, NOT_SERIALIZED_FIELDS, elapsed_timer
 from .redis import redis_client, handle_connection_failure, load_script
 from .signals import cache_invalidation
@@ -29,7 +29,7 @@ def invalidate_dict(model, obj_dict):
 
     hash_tag = None
     if settings.CACHEOPS_CLUSTERED_REDIS:
-        hash_tag = get_hash_tag_callback()(obj_dict)
+        hash_tag = '{hi}'
 
         # print(model._meta.db_table, json.dumps(obj_dict, default=str), hash_tag)
 
@@ -77,7 +77,12 @@ def invalidate_model(model):
     if no_invalidation.active:
         return
     model = non_proxy(model)
-    cache_key = '{%s}conj:%s:*' % (get_hash_tag_callback()(), model._meta.db_table)
+    if settings.CACHEOPS_CLUSTERED_REDIS:
+        hash_tag = '{hi}'
+        cache_key = '%sconj:%s:*' % (hash_tag, model._meta.db_table)
+    else:
+        cache_key = 'conj:%s:*' % model._meta.db_table
+
     conjs_keys = redis_client.keys(cache_key)
     if conjs_keys:
         cache_keys = redis_client.sunion(conjs_keys)

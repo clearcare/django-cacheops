@@ -5,15 +5,16 @@ import six
 from funcy import decorator, identity, memoize
 import redis
 from django.core.exceptions import ImproperlyConfigured
+from rediscluster import StrictRedisCluster
 
 from .conf import settings
 
-try:
-    import rediscluster
-except ImportError:
-    HAS_REDISCLUSTER = False
-else:
-    HAS_REDISCLUSTER = True
+# try:
+#     import rediscluster
+# except ImportError:
+#     HAS_REDISCLUSTER = False
+# else:
+#     HAS_REDISCLUSTER = True
 
 
 if settings.CACHEOPS_DEGRADE_ON_FAILURE:
@@ -43,9 +44,9 @@ class SafeRedis(redis.StrictRedis):
         return cache_data, ttl
 
 
-if HAS_REDISCLUSTER:
-    class ClusterRedis(rediscluster.StrictRedisCluster):
-        pass
+# if HAS_REDISCLUSTER:
+    # class ClusterRedis(rediscluster.StrictRedisCluster):
+        # pass
 
 
 class LazyRedis(object):
@@ -53,16 +54,20 @@ class LazyRedis(object):
         if not settings.CACHEOPS_REDIS:
             raise ImproperlyConfigured('You must specify CACHEOPS_REDIS setting to use cacheops')
 
-        if settings.CACHEOPS_CLUSTERED_REDIS and False:
-            Redis = eval(settings.CACHEOPS_REDIS_ENGINE)
+        if settings.CACHEOPS_CLUSTERED_REDIS:
+            startup_nodes = [
+                {"host": "localhost", "port": "7000"},
+                {"host": "localhost", "port": "7001"},
+            ]
+            client = StrictRedisCluster(startup_nodes=startup_nodes)
         else:
             Redis = SafeRedis if settings.CACHEOPS_DEGRADE_ON_FAILURE else redis.StrictRedis
 
-        # Allow client connection settings to be specified by a URL.
-        if isinstance(settings.CACHEOPS_REDIS, six.string_types):
-            client = Redis.from_url(settings.CACHEOPS_REDIS)
-        else:
-            client = Redis(**settings.CACHEOPS_REDIS)
+            # Allow client connection settings to be specified by a URL.
+            if isinstance(settings.CACHEOPS_REDIS, six.string_types):
+                client = Redis.from_url(settings.CACHEOPS_REDIS)
+            else:
+                client = Redis(**settings.CACHEOPS_REDIS)
 
         object.__setattr__(self, '__class__', client.__class__)
         object.__setattr__(self, '__dict__', client.__dict__)

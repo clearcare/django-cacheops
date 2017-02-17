@@ -47,6 +47,7 @@ def prepare_profiles():
         'ops': (),
         'local_get': False,
         'db_agnostic': True,
+        'hash_tag': None,
     }
     profile_defaults.update(settings.CACHEOPS_DEFAULTS)
 
@@ -84,14 +85,3 @@ def model_profile(model):
         if profile:
             profile['name'] = app_model
             return profile
-
-@memoize
-def get_hash_tag_callback():
-    func = None
-    if base_settings.CACHEOPS_CLUSTERED_REDIS:
-        try:
-            func = import_string(settings.CACHEOPS_HASH_TAG_CALLBACK)
-            assert callable(func)
-        except Exception:
-            raise Exception("If using clustered Redis you must provide a hashtag callback function.")
-    return func

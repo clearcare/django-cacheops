@@ -26,7 +26,7 @@ from django.test import TestCase
 
 
 def hashkey_callback(*args):
-    return 'hi'
+    return '{hi}'
 
 
 @override_settings(

@@ -198,3 +198,10 @@ def carefully_strip_whitespace(text):
     text = re.sub(r'>\s*\n\s*<', NEWLINE_BETWEEN_TAGS, text)
     text = re.sub(r'>\s{2,}<', SPACE_BETWEEN_TAGS, text)
     return text
+
+
+def extract_hash_tag(cache_key):
+    hash_tag = ''
+    if cache_key and isinstance(cache_key, basestring):
+        hash_tag = cache_key[:cache_key.index('}') + 1]
+    return hash_tag

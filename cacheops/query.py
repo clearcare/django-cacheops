@@ -19,9 +19,9 @@ try:
 except ImportError:
     MAX_GET_RESULTS = None
 
-from .conf import model_profile, settings, ALL_OPS, get_hash_tag_callback
+from .conf import model_profile, settings, ALL_OPS
 from .utils import monkey_mix, stamp_fields, func_cache_key, cached_view_fab, \
-        family_has_profile, get_model_name
+        family_has_profile, get_model_name, extract_hash_tag
 from .redis import redis_client, handle_connection_failure, load_script
 from .tree import dnfs
 from .invalidation import invalidate_obj, invalidate_dict, no_invalidation
@@ -34,20 +34,6 @@ __all__ = ('cached_as', 'cached_view_as', 'install_cacheops')
 _local_get_cache = {}
 
 
-def tag_cache_key(cache_key):
-
-    if hasattr(settings, 'CACHEOPS_HASH_TAG_CALLBACK') and settings.CACHEOPS_HASH_TAG_CALLBACK:
-        hash_tag = eval(settings.CACHEOPS_HASH_TAG_CALLBACK.format('None')) \
-            if settings.CACHEOPS_HASH_TAG_CALLBACK else None
-    else:
-        return None, None
-
-    if hash_tag == -1:
-        return None, None
-
-    return hash_tag, '{{{}}}{}'.format(hash_tag, cache_key)
-
-
 @handle_connection_failure
 def cache_thing(cache_key, data, cond_dnfs, timeout):
     """
@@ -56,9 +42,7 @@ def cache_thing(cache_key, data, cond_dnfs, timeout):
     assert not in_transaction()
     hash_tag = None
     if settings.CACHEOPS_CLUSTERED_REDIS:
-        # print(cond_dnfs)
-        hash_tag = get_hash_tag_callback()(data, cond_dnfs)
-        assert hash_tag, "Must always provide valid hash_tag"
+        hash_tag = extract_hash_tag(cache_key)
 
     load_script('cache_thing', settings.CACHEOPS_LRU)(
         keys=[cache_key],
@@ -111,6 +95,15 @@ def cached_as(*samples, **kwargs):
                 return func(*args, **kwargs)
 
             cache_key = 'as:' + key_func(func, args, kwargs, key_extra)
+            if settings.CACHEOPS_CLUSTERED_REDIS:
+                hash_tags = [extract_hash_tag(key) for key in key_extra if key]
+                hash_tags = filter(lambda x: x, hash_tags)
+                hash_tag = hash_tags[0]
+                if not hash_tags.count(hash_tag) == len(hash_tags):
+                    raise Exception("Cannot combine multiple types of models here.")
+
+                cache_key = '%s%s' % (hash_tag, cache_key)
+
             if settings.CACHEOPS_CLUSTERED_REDIS and False:
                 # Derrick's stuff
                 hash_tag, cache_key = tag_cache_key(cache_key)
@@ -136,10 +129,8 @@ def cached_as(*samples, **kwargs):
                 if hash_tag is not None:
                     cache_thing(cache_key, result, cond_dnfs, timeout)
             else:
-                if settings.CACHEOPS_CLUSTERED_REDIS:
-                    cache_key = ''.join(['{', get_hash_tag_callback()(), '}', cache_key])
-                print cache_key
-                cache_data, ttl = redis_client.get_with_ttl(cache_key)
+                cache_data = redis_client.get(cache_key)
+                ttl = 100
                 cache_read.send(
                     sender=None,
                     func=func,
@@ -214,13 +205,9 @@ class QuerySetMixin(object):
         if hasattr(self, 'flat'):
             md.update(str(self.flat))
 
-        if settings.CACHEOPS_CLUSTERED_REDIS and False:
-            cache_key = 'q:%s' % md.hexdigest()
-
-            hash_tag, cache_key = tag_cache_key(cache_key)
-            if hash_tag is None:
-                return
-
+        if settings.CACHEOPS_CLUSTERED_REDIS:
+            hash_tag = '{hi}'
+            cache_key = '%sq:%s' % (hash_tag, md.hexdigest())
         else:
             cache_key = 'q:%s' % md.hexdigest()
         return cache_key
@@ -324,12 +311,12 @@ class QuerySetMixin(object):
         cache_key = self._cache_key()
         # Derrick added some checks for if cache_key not None
         if not self._cacheconf['write_only'] and not self._for_write:
-            cache_data, ttl = redis_client.get_with_ttl(cache_key)
+            cache_data = redis_client.get(cache_key)
 
             # Trying get data from cache
             # cache_data = redis_client.get(cache_key)
             # XXX: Fix this!!
-            # ttl = 100
+            ttl = 100
             cache_read.send(
                 sender=self.model,
                 func=self._cacheprofile['name'],
