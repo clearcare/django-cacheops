@@ -48,22 +48,19 @@ def cache_thing(cache_key, data, cond_dnfs, timeout):
     print('cond_dnfs---')
     pprint(cond_dnfs)
     assert not in_transaction()
-    redis_client.setex(cache_key, timeout, data)
-    for db_table, conditions in cond_dnfs:
-        print('hollar1: ', db_table)
-        print('hollar2: ', conditions)
-        hash_tag = None
-        if settings.CACHEOPS_CLUSTERED_REDIS:
-            hash_tag = get_tag()(db_table)
+    hash_tag = None
+    if settings.CACHEOPS_CLUSTERED_REDIS:
+        hash_tag = extract_hash_tag(cache_key)
 
-        load_script('new_cache_thing', settings.CACHEOPS_LRU)(
-            keys=[hash_tag],
-            args=[
-                json.dumps(cond_dnfs, default=str),
-                timeout,
-                hash_tag,
-            ]
-        )
+    load_script('cache_thing', settings.CACHEOPS_LRU)(
+        keys=[cache_key],
+        args=[
+            pickle.dumps(data, -1),
+            json.dumps(cond_dnfs, default=str),
+            timeout,
+            hash_tag,
+        ]
+    )
 
 
 def cached_as(*samples, **kwargs):
@@ -560,7 +557,8 @@ def invalidate_m2m(sender=None, instance=None, model=None, action=None, pk_set=N
 
     # TODO: optimize several invalidate_objs/dicts at once
     if action == 'pre_clear':
-        print 'pre clear yo'
+        # print 'pre clear yo'
+        # import ipdb; ipdb.set_trace()
         # TODO: always use column names here once Django 1.3 is dropped
         instance_field = m2m.m2m_reverse_field_name() if reverse else m2m.m2m_field_name()
         objects = sender.objects.filter(**{instance_field: instance.pk})

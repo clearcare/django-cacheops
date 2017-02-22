@@ -22,6 +22,8 @@ __all__ = ('invalidate_obj', 'invalidate_model', 'invalidate_all', 'no_invalidat
 @queue_when_in_transaction
 @handle_connection_failure
 def invalidate_dict(model, obj_dict):
+    # if 'Brand_labels' in str(model):
+        # import ipdb; ipdb.set_trace()
     if no_invalidation.active:
         return
     model = non_proxy(model)

@@ -42,15 +42,21 @@ def hash_tag_callback(model, db_table=None):
         # import ipdb; ipdb.set_trace()
     # if hasattr(model, '_cacheprofile') and model._cacheprofile:
         # hash_tag = model._cacheprofile.get('hash_tag', None)
-    if model._meta.auto_created and False:
+    if model._meta.auto_created:
+        hash_tag = '{' + get_hash_tag(model._meta.auto_created._meta.db_table) + '}'
+        print 'autocreated catch'
+        print model
+        print model._meta.auto_created._meta.db_table
         # ManyToMany fields
         # import ipdb; ipdb.set_trace()
-        models = [f.rel.model for f in model._meta.get_fields()]
-        models.sort(key=lambda m: m._meta.db_table)
-        hash_tag = get_hash_tag(models[0])
+        # models = [f.rel.model for f in model._meta.get_fields()]
+        # models.sort(key=lambda m: m._meta.db_table)
+        # hash_tag = get_hash_tag(models[0])
     else:
         hash_tag = '{' + get_hash_tag(db_table) + '}'
-    print('HASH_TAG: ' + hash_tag)
+    # if db_table == 'tests_brand_labels':
+        # import ipdb; ipdb.set_trace()
+    print hash_tag, db_tables
     return hash_tag
 
 
