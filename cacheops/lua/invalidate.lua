@@ -39,4 +39,5 @@ if next(conj_keys) ~= nil then
         --       of return values in lua.
         call_in_chunks('del', cache_keys)
     end
+    return table.getn(cache_keys) + table.getn(conj_keys)
 end

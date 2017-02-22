@@ -62,7 +62,8 @@ import django
 from django.db import connection
 from django.core.management import call_command
 
-django.setup()
+if hasattr(django, 'setup'):
+    django.setup()
 
 
 # Parse command line arguments

@@ -6,6 +6,7 @@ from funcy import memoize, compose, wraps, any, partial
 from funcy.py2 import mapcat
 from .cross import md5hex
 
+import django
 from django.db import models
 from django.http import HttpRequest
 
@@ -17,8 +18,9 @@ from .conf import model_profile
 NOT_SERIALIZED_FIELDS = (
     models.FileField,
     models.TextField, # One should not filter by long text equality
-    models.BinaryField,
 )
+if hasattr(models, 'BinaryField'):
+    NOT_SERIALIZED_FIELDS += (models.BinaryField,)
 
 
 @memoize
@@ -44,6 +46,14 @@ def model_family(model):
 @memoize
 def family_has_profile(cls):
     return any(model_profile, model_family(cls))
+
+
+if django.VERSION < (1, 6):
+    def get_model_name(model):
+        return model._meta.module_name
+else:
+    def get_model_name(model):
+        return model._meta.model_name
 
 
 class MonkeyProxy(object):
@@ -150,6 +160,25 @@ def cached_view_fab(_cached):
         return decorator
     return cached_view
 
+
+import datetime
+from contextlib import contextmanager
+
+def elapser(start):
+    # Returns the elapsed time in microseconds
+    # 1s = 1000000 us
+    # https://github.com/antirez/redis/blob/unstable/src/server.c#L396
+    now = datetime.datetime.utcnow() - start
+    m = now.seconds * 1000000
+    m += now.microseconds
+    return m
+
+# http://stackoverflow.com/questions/7370801/measure-time-elapsed-in-python
+
+@contextmanager
+def elapsed_timer():
+    start = datetime.datetime.utcnow()
+    yield lambda: elapser(start)
 
 ### Whitespace handling for template tags
 

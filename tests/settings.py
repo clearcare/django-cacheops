@@ -1,5 +1,7 @@
 import os
 
+ROOT_DIR = os.getcwd()
+
 INSTALLED_APPS = [
     'cacheops',
     'django.contrib.contenttypes',
@@ -75,7 +77,7 @@ else:
             # Make in memory sqlite test db to work with threads
             # See https://code.djangoproject.com/ticket/12118
             'TEST': {
-                'NAME': '/dev/shm/cacheops_sqlite.db'
+                'NAME': os.path.join(ROOT_DIR, 'cacheops_sqlite.db')
             }
         },
         'slave': {

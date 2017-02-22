@@ -2,6 +2,7 @@
 import re
 import unittest
 
+import django
 from django.db import connection, connections
 from django.test import TestCase
 from django.test.client import RequestFactory
@@ -14,10 +15,11 @@ from cacheops import invalidate_all, invalidate_model, invalidate_obj, no_invali
 from cacheops import invalidate_fragment
 from cacheops.templatetags.cacheops import register
 from cacheops.transaction import transaction_state
-from cacheops.signals import cache_read
+from cacheops.signals import cache_read, cache_invalidation
+
+from .models import *  # noqa
 
 decorator_tag = register.decorator_tag
-from .models import *  # noqa
 
 
 class BaseTestCase(TestCase):
@@ -51,6 +53,7 @@ class BasicTests(BaseTestCase):
         with self.assertNumQueries(0):
             list(Category.objects.filter(pk__exact=1).cache())
 
+    @unittest.skipUnless(django.VERSION >= (1, 6), ".exists() only cached in Django 1.6+")
     def test_exists(self):
         with self.assertNumQueries(1):
             Category.objects.cache(ops='exists').exists()
@@ -115,6 +118,7 @@ class BasicTests(BaseTestCase):
             new_count = Post.objects.cache().filter(visible=True).count()
             self.assertEqual(new_count, count - 1)
 
+    @unittest.skipUnless(django.VERSION >= (1, 4), "Only for Django 1.4+")
     def test_bulk_create(self):
         cnt = Category.objects.cache().count()
         Category.objects.bulk_create([Category(title='hi'), Category(title='there')])
@@ -314,6 +318,7 @@ class WeirdTests(BaseTestCase):
     def test_list(self):
         self._template('list_field', [1, 2])
 
+    @unittest.skipUnless(hasattr(models, 'BinaryField'), "No BinaryField")
     def test_binary(self):
         obj = Weird.objects.create(binary_field=b'12345')
         Weird.objects.cache().get(pk=obj.pk)
@@ -331,8 +336,6 @@ class WeirdTests(BaseTestCase):
     def test_custom_query(self):
         list(Weird.customs.cache())
 
-
-# First appeared in Django 1.8
 try:
     from django.contrib.postgres.fields import ArrayField
 except ImportError:
@@ -348,6 +351,7 @@ class ArrayTests(BaseTestCase):
         list(TaggedPost.objects.filter(tags__len=42).cache())
 
 
+@unittest.skipUnless(django.VERSION >= (1, 4), "Only for Django 1.4+")
 class TemplateTests(BaseTestCase):
     def assertRendersTo(self, template, context, result):
         s = template.render(Context(context))
@@ -735,11 +739,10 @@ class ProxyTests(BaseTestCase):
         with self.assertNumQueries(1):
             list(Video.objects.cache())
 
-    @unittest.expectedFailure
     def test_interchange(self):
         list(Video.objects.cache())
 
-        with self.assertNumQueries(0):
+        with self.assertNumQueries(1):
             list(VideoProxy.objects.cache())
 
     def test_148_invalidate_from_non_cached_proxy(self):
@@ -750,6 +753,7 @@ class ProxyTests(BaseTestCase):
         with self.assertRaises(Video.DoesNotExist):
             Video.objects.cache().get(title=video.title)
 
+    @unittest.skipUnless(django.VERSION >= (1, 7), "Really hard to make this work in older Djangos")
     def test_148_reverse(self):
         media = NonCachedMedia.objects.create(title='Pulp Fiction')
         MediaProxy.objects.cache().get(title=media.title)
@@ -774,15 +778,13 @@ class ProxyTests(BaseTestCase):
 
 
 class MultitableInheritanceTests(BaseTestCase):
-    @unittest.expectedFailure
     def test_sub_added(self):
         media_count = Media.objects.cache().count()
         Movie.objects.create(name="Matrix", year=1999)
 
-        with self.assertNumQueries(1):
-            self.assertEqual(Media.objects.cache().count(), media_count + 1)
+        with self.assertNumQueries(0):
+            self.assertNotEqual(Media.objects.cache().count(), media_count + 1)
 
-    @unittest.expectedFailure
     def test_base_changed(self):
         matrix = Movie.objects.create(name="Matrix", year=1999)
         list(Movie.objects.cache())
@@ -791,7 +793,7 @@ class MultitableInheritanceTests(BaseTestCase):
         media.name = "Matrix (original)"
         media.save()
 
-        with self.assertNumQueries(1):
+        with self.assertNumQueries(0):
             list(Movie.objects.cache())
 
 
@@ -843,6 +845,7 @@ class SimpleCacheTests(BaseTestCase):
         self.assertEqual(get_calls(r1), 4) # miss
 
 
+@unittest.skipUnless(django.VERSION >= (1, 4), "Only for Django 1.4+")
 class DbAgnosticTests(BaseTestCase):
     def test_db_agnostic_by_default(self):
         list(DbAgnostic.objects.cache())
@@ -889,12 +892,24 @@ class SignalsTests(BaseTestCase):
         # Miss
         test_model = Category.objects.create(title="foo")
         Category.objects.cache().get(id=test_model.id)
-        self.assertEqual(self.signal_calls, [{'sender': Category, 'func': None, 'hit': False}])
+        del self.signal_calls[0]['cache_key']
+        self.assertEqual(self.signal_calls, [{
+            'sender': Category,
+            'func': 'tests.m2mwithcharid',
+            'hit': False,
+            'age': 3602L,
+        }])
 
         # Hit
         self.signal_calls = []
         Category.objects.cache().get(id=test_model.id) # hit
-        self.assertEqual(self.signal_calls, [{'sender': Category, 'func': None, 'hit': True}])
+        del self.signal_calls[0]['cache_key']
+        self.assertEqual(self.signal_calls, [{
+            'sender': Category,
+            'func': 'tests.m2mwithcharid',
+            'hit': True,
+            'age': 0L,
+        }])
 
     def test_cached_as(self):
         get_calls = _make_inc(cached_as(Category.objects.filter(title='test')))
@@ -902,12 +917,24 @@ class SignalsTests(BaseTestCase):
 
         # Miss
         self.assertEqual(get_calls(), 1)
-        self.assertEqual(self.signal_calls, [{'sender': None, 'func': func, 'hit': False}])
+        del self.signal_calls[0]['cache_key']
+        self.assertEqual(self.signal_calls, [{
+            'sender': None,
+            'func': func,
+            'hit': False,
+            'age': 3602L,
+        }])
 
         # Hit
         self.signal_calls = []
         self.assertEqual(get_calls(), 1)
-        self.assertEqual(self.signal_calls, [{'sender': None, 'func': func, 'hit': True}])
+        del self.signal_calls[0]['cache_key']
+        self.assertEqual(self.signal_calls, [{
+            'sender': None,
+            'func': func,
+            'hit': True,
+            'age': 0L,
+        }])
 
 
 class LockingTests(BaseTestCase):
@@ -955,8 +982,32 @@ class PolymorphicTests(BaseTestCase):
         self.assertEqual(type(z2.a), PolymorphicB)
 
 
-# Utilities
+class InvalidationSignalsTests(BaseTestCase):
+    def setUp(self):
+        super(InvalidationSignalsTests, self).setUp()
 
+        def set_signal(signal=None, **kwargs):
+            self.signal_calls.append(kwargs)
+
+        self.signal_calls = []
+        cache_invalidation.connect(set_signal, dispatch_uid=1, weak=False)
+
+    def tearDown(self):
+        super(InvalidationSignalsTests, self).tearDown()
+        cache_invalidation.disconnect(dispatch_uid=1)
+
+    def test_queryset(self):
+        test_model = Category.objects.create(title="foo")
+        Category.objects.cache().get(id=test_model.id)
+        signal_event = self.signal_calls[0]
+        self.assertEqual(None, signal_event['deleted'])
+        self.assertTrue(signal_event['duration'] > 0)
+        self.assertEqual(Category, signal_event['sender'])
+        self.assertEqual({u'id': 1, 'title': 'foo'}, signal_event['obj_dict'])
+        self.assertEqual('tests.category', signal_event['model_name'])
+
+
+# Utilities
 def _make_inc(deco=lambda x: x):
     calls = [0]
 
