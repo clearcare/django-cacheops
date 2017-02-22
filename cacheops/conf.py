@@ -85,3 +85,16 @@ def model_profile(model):
         if profile:
             profile['name'] = app_model
             return profile
+
+@memoize
+def get_tag():
+    func = None
+    if base_settings.CACHEOPS_CLUSTERED_REDIS:
+        try:
+            func = import_string(settings.CACHEOPS_HASH_TAG_CALLBACK)
+            assert callable(func)
+        except Exception, exc:
+            raise exc
+            # raise Exception("If using clustered Redis you must provide a hashtag callback function.")
+
+    return func

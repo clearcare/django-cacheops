@@ -167,6 +167,8 @@ def dnfs(qs):
     # NOTE: we exclude content_type as it never changes and will hold dead invalidation info
     aliases = {alias for alias, cnt in qs.query.alias_refcount.items() if cnt} \
             | {main_alias} - {'django_content_type'}
+    print('in dnfXXXXXXXXXXXXX')
+    print([(table_for(alias), clean_dnf(dnf, alias)) for alias in aliases])
     return [(table_for(alias), clean_dnf(dnf, alias)) for alias in aliases]
 
 

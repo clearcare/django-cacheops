@@ -17,22 +17,47 @@ from cacheops import invalidate_fragment
 from cacheops.templatetags.cacheops import register
 from cacheops.transaction import transaction_state
 from cacheops.signals import cache_read, cache_invalidation
+from cacheops.redis import load_script
 
 from .models import *
 
 decorator_tag = register.decorator_tag
 
 from django.test import TestCase
+import random, string
+
+db_tables = {}
+def get_hash_tag(db_table):
+    random_string = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))
+    db_tables.setdefault(db_table, random_string)
+    return db_tables.get(db_table)
 
 
-def hashkey_callback(*args):
-    return '{hi}'
+def hash_tag_callback(model, db_table=None):
+    if db_table is None:
+        db_table = model._meta.db_table
+    hash_tags = '{default}'
+    # [(ff.rel.model, ff.rel.one_to_many, ff.rel.model._meta.many_to_many) for ff in model._meta.get_fields() if ff.rel]
+    # if 'Brand_labels' in str(model):
+        # import ipdb; ipdb.set_trace()
+    # if hasattr(model, '_cacheprofile') and model._cacheprofile:
+        # hash_tag = model._cacheprofile.get('hash_tag', None)
+    if model._meta.auto_created and False:
+        # ManyToMany fields
+        # import ipdb; ipdb.set_trace()
+        models = [f.rel.model for f in model._meta.get_fields()]
+        models.sort(key=lambda m: m._meta.db_table)
+        hash_tag = get_hash_tag(models[0])
+    else:
+        hash_tag = '{' + get_hash_tag(db_table) + '}'
+    print('HASH_TAG: ' + hash_tag)
+    return hash_tag
 
 
 @override_settings(
     CACHEOPS_CLUSTERED_REDIS=True,
     CACHEOPS_REDIS_ENGINE=None,
-    CACHEOPS_HASH_TAG_CALLBACK='tests.tests_clustered.hashkey_callback')
+    CACHEOPS_HASH_TAG_CALLBACK='tests.tests_clustered.hash_tag_callback')
 class BaseTestCase(TestCase):
     def setUp(self):
         # Emulate not being in transaction by tricking system to ignore its pretest level.
@@ -40,6 +65,7 @@ class BaseTestCase(TestCase):
         # The alternative is using TransactionTestCase, which is 10x slow.
         transaction_state._stack, self._stack = [], transaction_state._stack
         invalidate_all()
+        load_script('log')(keys=['{default}'], args=['XXX Starting Test'])
 
     def tearDown(self):
         transaction_state._stack = self._stack
@@ -542,13 +568,17 @@ class IssueTests(BaseTestCase):
 
         # Create another brand with the same pk as label.
         # This will trigger a bug invalidating brands quering them by label id.
+        import ipdb; ipdb.set_trace()
         another_brand = Brand.objects.create(pk=2)
-
-        list(brand.labels.cache())
+        load_script('log')(keys=['{default}'], args=['XXX Caching'])
+        list(brand.labels.cache(debug=False))
+        load_script('log')(keys=['{default}'], args=['XXX End Caching'])
         list(another_brand.labels.cache())
 
         # Clear brands for label linked to brand, but not another_brand.
+        load_script('log')(keys=['{default}'], args=['XXX Invalidating'])
         label.brands.clear()
+        load_script('log')(keys=['{default}'], args=['XXX End Invalidating'])
 
         # Cache must stay for another_brand
         with self.assertNumQueries(0):

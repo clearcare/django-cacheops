@@ -96,15 +96,39 @@ CACHEOPS_DEFAULTS = {
     'timeout': 60*60
 }
 CACHEOPS = {
-    'tests.local': {'local_get': True},
-    'tests.cacheonsavemodel': {'cache_on_save': True},
-    'tests.dbbinded': {'db_agnostic': False},
-    'tests.genericcontainer': {'ops': ('fetch', 'get', 'count')},
-    'tests.All': {'ops': 'all'},
-    'tests.*': {},
-    'tests.noncachedvideoproxy': None,
+    'auth.*': {},
+    'tests.all': {'ops': 'all', 'hash_tag': 'y'},
+    'tests.brand': {'ops': 'all', 'hash_tag': 'k'},
+    'tests.brand_labels': {'ops': 'all', 'hash_tag': 'cc'},
+    'tests.brandt': {'ops': 'all', 'hash_tag': 'm'},
+    'tests.cacheonsavemodel': {'cache_on_save': True, 'hash_tag': 'p'},
+    'tests.category': {'ops': 'all', 'hash_tag': 'a'},
+    'tests.contained': {'ops': 'all', 'hash_tag': 'x'},
+    'tests.dbagnostic': {'ops': 'all', 'hash_tag': 'q'},
+    'tests.dbbinded': {'db_agnostic': False, 'hash_tag': 'r'},
+    'tests.extra': {'ops': 'all', 'hash_tag': 'c'},
+    'tests.genericcontainer': {'ops': ('fetch', 'get', 'count'), 'hash_tag': 'w'},
+    'tests.label': {'ops': 'all', 'hash_tag': 'j'},
+    'tests.labeling': {'ops': 'all', 'hash_tag': 'n'},
+    'tests.labelt': {'ops': 'all', 'hash_tag': 'l'},
+    'tests.local': {'local_get': True, 'hash_tag': 'o'},
+    'tests.m2mbase': {'ops': 'all', 'hash_tag': 'aa'},
+    'tests.m2mwithcharid': {'ops': 'all', 'hash_tag': 'bb'},
+    'tests.media': {'ops': 'all', 'hash_tag': 'h'},
+    'tests.mediaproxy': {'ops': 'all', 'hash_tag': 'ff'},
+    'tests.movie': {'ops': 'all', 'hash_tag': 'dd'},
     'tests.noncachedmedia': None,
-    'auth.*': {}
+    'tests.noncachedvideoproxy': None,
+    'tests.one': {'ops': 'all', 'hash_tag': 'z'},
+    'tests.point': {'ops': 'all', 'hash_tag': 'i'},
+    'tests.post': {'ops': 'all', 'hash_tag': 'a'},
+    'tests.product': {'ops': 'all', 'hash_tag': 's'},
+    'tests.productreview': {'ops': 'all', 'hash_tag': 't'},
+    'tests.profile': {'ops': 'all', 'hash_tag': 'e'},
+    'tests.video': {'ops': 'all', 'hash_tag': 'f'},
+    'tests.videoproxy': {'ops': 'all', 'hash_tag': 'gg'},
+    'tests.weird': {'ops': 'all', 'hash_tag': 'd'},
+    # 'tests.*': {},
 }
 
 CACHEOPS_LRU = bool(os.environ.get('CACHEOPS_LRU'))
@@ -116,4 +140,4 @@ SECRET_KEY = 'abc'
 # Required in Django 1.9
 TEMPLATES = [{'BACKEND': 'django.template.backends.django.DjangoTemplates'}]
 CACHEOPS_CLUSTERED_REDIS = True
-CACHEOPS_HASH_TAG_CALLBACK = 'tests.tests_clustered.hashkey_callback'
+CACHEOPS_HASH_TAG_CALLBACK = 'tests.tests_clustered.hash_tag_callback'

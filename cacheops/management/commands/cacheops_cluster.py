@@ -18,39 +18,39 @@ def iter_csv(csvfile):
 
 
 class Command(BaseCommand):
-    option_list = BaseCommand.option_list + (
-        make_option(
-            '--flushall',
-            action='store_true',
-            default=False,
-            dest='flushall',
-            help='Flush all the keys.',
-        ),
-        make_option(
-            '--lookup',
-            dest='lookup',
-            help='Lookup the node for a hash slot.',
-        ),
-        make_option(
-            '--csv',
-            dest='csv',
-        ),
-    )
+    # option_list = BaseCommand.option_list + (
+    #     make_option(
+    #         '--flushall',
+    #         action='store_true',
+    #         default=False,
+    #         dest='flushall',
+    #         help='Flush all the keys.',
+    #     ),
+    #     make_option(
+    #         '--lookup',
+    #         dest='lookup',
+    #         help='Lookup the node for a hash slot.',
+    #     ),
+    #     make_option(
+    #         '--csv',
+    #         dest='csv',
+    #     ),
+    # )
 
     def handle(self, *args, **options):
 
         d = defaultdict(list)
 
-        if options['flushall']:
+        if options.get('flushall'):
             redis_client.flushall()
             sys.exit(1)
 
-        if options['lookup']:
-            redis_client.connection_pool.nodes.node_from_slot(options['lookup'])
+        if options.get('lookup'):
+            redis_client.connection_pool.nodes.node_from_slot(options.get('lookup'))
             sys.exit(1)
 
-        if options['csv']:
-            for subdomain in iter_csv(options['csv']):
+        if options.get('csv'):
+            for subdomain in iter_csv(options.get('csv')):
                 key = '{{a:{}}}'.format(subdomain)
                 keyslot = redis_client.connection_pool.nodes.keyslot(key)
                 node = redis_client.connection_pool.nodes.node_from_slot(keyslot)['name']

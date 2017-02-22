@@ -19,7 +19,7 @@ try:
 except ImportError:
     MAX_GET_RESULTS = None
 
-from .conf import model_profile, settings, ALL_OPS
+from .conf import model_profile, settings, ALL_OPS, get_tag
 from .utils import monkey_mix, stamp_fields, func_cache_key, cached_view_fab, \
         family_has_profile, get_model_name, extract_hash_tag
 from .redis import redis_client, handle_connection_failure, load_script
@@ -33,26 +33,37 @@ __all__ = ('cached_as', 'cached_view_as', 'install_cacheops')
 
 _local_get_cache = {}
 
+from pprint import pprint
+
 
 @handle_connection_failure
 def cache_thing(cache_key, data, cond_dnfs, timeout):
     """
     Writes data to cache and creates appropriate invalidators.
     """
+    print('cache_key')
+    print(cache_key)
+    print('data---')
+    pprint(data)
+    print('cond_dnfs---')
+    pprint(cond_dnfs)
     assert not in_transaction()
-    hash_tag = None
-    if settings.CACHEOPS_CLUSTERED_REDIS:
-        hash_tag = extract_hash_tag(cache_key)
+    redis_client.setex(cache_key, timeout, data)
+    for db_table, conditions in cond_dnfs:
+        print('hollar1: ', db_table)
+        print('hollar2: ', conditions)
+        hash_tag = None
+        if settings.CACHEOPS_CLUSTERED_REDIS:
+            hash_tag = get_tag()(db_table)
 
-    load_script('cache_thing', settings.CACHEOPS_LRU)(
-        keys=[cache_key],
-        args=[
-            pickle.dumps(data, -1),
-            json.dumps(cond_dnfs, default=str),
-            timeout,
-            hash_tag,
-        ]
-    )
+        load_script('new_cache_thing', settings.CACHEOPS_LRU)(
+            keys=[hash_tag],
+            args=[
+                json.dumps(cond_dnfs, default=str),
+                timeout,
+                hash_tag,
+            ]
+        )
 
 
 def cached_as(*samples, **kwargs):
@@ -100,7 +111,7 @@ def cached_as(*samples, **kwargs):
                 hash_tags = filter(lambda x: x, hash_tags)
                 hash_tag = hash_tags[0]
                 if not hash_tags.count(hash_tag) == len(hash_tags):
-                    raise Exception("Cannot combine multiple types of models here.")
+                    raise Exception("Cannot combine multiple models with different hash tags using cached_as.")
 
                 cache_key = '%s%s' % (hash_tag, cache_key)
 
@@ -154,6 +165,7 @@ def cached_view_as(*samples, **kwargs):
 
 
 class QuerySetMixin(object):
+
     @cached_property
     def _cacheprofile(self):
         profile = model_profile(self.model)
@@ -206,7 +218,7 @@ class QuerySetMixin(object):
             md.update(str(self.flat))
 
         if settings.CACHEOPS_CLUSTERED_REDIS:
-            hash_tag = '{hi}'
+            hash_tag = get_tag()(model=self.model)
             cache_key = '%sq:%s' % (hash_tag, md.hexdigest())
         else:
             cache_key = 'q:%s' % md.hexdigest()
@@ -216,7 +228,7 @@ class QuerySetMixin(object):
         cond_dnfs = dnfs(self)
         cache_thing(cache_key, results, cond_dnfs, self._cacheconf['timeout'])
 
-    def cache(self, ops=None, timeout=None, write_only=None):
+    def cache(self, ops=None, timeout=None, write_only=None, debug=False):
         """
         Enables caching for given ops
             ops        - a subset of {'get', 'fetch', 'count', 'exists'},
@@ -227,6 +239,8 @@ class QuerySetMixin(object):
         NOTE: you actually can disable caching by omiting corresponding ops,
               .cache(ops=[]) disables caching for this queryset.
         """
+        if debug:
+            self.debug=debug
         self._require_cacheprofile()
 
         if ops is None or ops == 'all':
@@ -546,10 +560,12 @@ def invalidate_m2m(sender=None, instance=None, model=None, action=None, pk_set=N
 
     # TODO: optimize several invalidate_objs/dicts at once
     if action == 'pre_clear':
+        print 'pre clear yo'
         # TODO: always use column names here once Django 1.3 is dropped
         instance_field = m2m.m2m_reverse_field_name() if reverse else m2m.m2m_field_name()
         objects = sender.objects.filter(**{instance_field: instance.pk})
         for obj in objects:
+            print obj
             invalidate_obj(obj)
     elif action in ('post_add', 'pre_remove'):
         instance_column, model_column = m2m.m2m_column_name(), m2m.m2m_reverse_name()
