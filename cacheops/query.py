@@ -102,11 +102,11 @@ def cached_as(*samples, **kwargs):
             cache_data, ttl = redis_client.get_with_ttl(cache_key)
             with redis_client.getting(cache_key, lock=lock) as cache_data:
                 cache_read.send(sender=None, func=func, hit=cache_data is not None)
-                func=func,
-                hit=cache_data is not None,
-                age=timeout - ttl,
-                cache_key=cache_key,
-            )
+                # func=func,
+                # hit=cache_data is not None,
+                # age=timeout - ttl,
+                # cache_key=cache_key,
+
                 if cache_data is not None:
                     return pickle.loads(cache_data)
                 else:
@@ -370,12 +370,12 @@ class QuerySetMixin(object):
 
     if django.VERSION >= (1, 6):
         def exists(self):
-        if self._cacheprofile and 'exists' in self._cacheprofile['ops']:
+            if self._cacheprofile and 'exists' in self._cacheprofile['ops']:
                 if self._result_cache is not None:
                     return bool(self._result_cache)
-                return cached_as(self)(lambda: self._no_monkey.exists(self))()
-            else:
-                return self._no_monkey.exists(self)
+                    return cached_as(self)(lambda: self._no_monkey.exists(self))()
+                else:
+                    return self._no_monkey.exists(self)
 
     if django.VERSION >= (1, 5):
         def bulk_create(self, objs, batch_size=None):
