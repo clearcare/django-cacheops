@@ -14,14 +14,14 @@ from django.db.models import Manager, Model
 from django.db.models.query import QuerySet
 from django.db.models.sql.datastructures import EmptyResultSet
 from django.db.models.signals import pre_save, post_save, post_delete, m2m_changed
+# This thing was removed in Django 1.8
 try:
     from django.db.models.query import MAX_GET_RESULTS
 except ImportError:
     MAX_GET_RESULTS = None
 
 from .conf import model_profile, model_is_fake, settings, ALL_OPS
-from .utils import monkey_mix, stamp_fields, func_cache_key, cached_view_fab, \
-        family_has_profile, get_model_name
+from .utils import monkey_mix, stamp_fields, func_cache_key, cached_view_fab, family_has_profile
 from .redis import redis_client, handle_connection_failure, load_script
 from .tree import dnfs
 from .invalidation import invalidate_obj, invalidate_dict, no_invalidation
@@ -138,7 +138,7 @@ class QuerySetMixin(object):
                 'Cacheops is not enabled for %s.%s model.\n'
                 'If you don\'t want to cache anything by default '
                 'you can configure it with empty ops.'
-                    % (self.model._meta.app_label, get_model_name(self.model)))
+                    % (self.model._meta.app_label, self.model._meta.model_name))
 
     def _cache_key(self):
         """
@@ -276,13 +276,13 @@ class QuerySetMixin(object):
         if not self._cacheprofile['write_only'] and not self._for_write:
             # Trying get data from cache
             cache_data, ttl = redis_client.get_with_ttl(cache_key)
-            cache_read.send(
-                sender=self.model,
-                func=self._cacheprofile['name'],
-                hit=cache_data is not None,
-                age=self._cacheprofile['timeout'] - ttl,
-                cache_key=cache_key,
-            )
+            # cache_read.send(
+            #     sender=self.model,
+            #     func=self._cacheprofile['name'],
+            #     hit=cache_data is not None,
+            #     age=self._cacheprofile['timeout'] - ttl,
+            #     cache_key=cache_key,
+            # )
             if cache_data is not None:
                 return iter(pickle.loads(cache_data))
 
@@ -327,8 +327,7 @@ class QuerySetMixin(object):
         if self._cacheprofile and 'count' in self._cacheprofile['ops']:
             # Optmization borrowed from overriden method:
             # if queryset cache is already filled just return its len
-            # NOTE: there is no self._iter in Django 1.6+, so we use getattr() for compatibility
-            if self._result_cache is not None and not getattr(self, '_iter', None):
+            if self._result_cache is not None:
                 return len(self._result_cache)
             return cached_as(self)(lambda: self._no_monkey.count(self))()
         else:
@@ -368,29 +367,20 @@ class QuerySetMixin(object):
 
         return qs._no_monkey.get(qs, *args, **kwargs)
 
-    if django.VERSION >= (1, 6):
-        def exists(self):
-            if self._cacheprofile and 'exists' in self._cacheprofile['ops']:
-                if self._result_cache is not None:
-                    return bool(self._result_cache)
-                    return cached_as(self)(lambda: self._no_monkey.exists(self))()
-                else:
-                    return self._no_monkey.exists(self)
+    def exists(self):
+        if self._cacheprofile and 'exists' in self._cacheprofile['ops']:
+            if self._result_cache is not None:
+                return bool(self._result_cache)
+            return cached_as(self)(lambda: self._no_monkey.exists(self))()
+        else:
+            return self._no_monkey.exists(self)
 
-    if django.VERSION >= (1, 5):
-        def bulk_create(self, objs, batch_size=None):
-            objs = self._no_monkey.bulk_create(self, objs, batch_size=batch_size)
-            if family_has_profile(self.model):
-                for obj in objs:
-                    invalidate_obj(obj)
-            return objs
-    elif django.VERSION >= (1, 4):
-        def bulk_create(self, objs):
-            objs = self._no_monkey.bulk_create(self, objs)
-            if family_has_profile(self.model):
-                for obj in objs:
-                    invalidate_obj(obj)
-            return objs
+    def bulk_create(self, objs, batch_size=None):
+        objs = self._no_monkey.bulk_create(self, objs, batch_size=batch_size)
+        if family_has_profile(self.model):
+            for obj in objs:
+                invalidate_obj(obj)
+        return objs
 
     def invalidated_update(self, **kwargs):
         clone = self._clone().nocache()
@@ -493,11 +483,6 @@ class ManagerMixin(object):
         #       before deletion (why anyone will do that?)
         invalidate_obj(instance)
 
-    # Django 1.5- compatability
-    if not hasattr(Manager, 'get_queryset'):
-        def get_queryset(self):
-            return self.get_query_set()
-
     def inplace(self):
         return self.get_queryset().inplace()
 
@@ -583,10 +568,7 @@ def install_cacheops():
     if admin_used:
         from django.contrib.admin.options import ModelAdmin
 
-        # Renamed queryset to get_queryset in Django 1.6
-        method_name = 'get_queryset' if hasattr(ModelAdmin, 'get_queryset') else 'queryset'
-
-        @monkey(ModelAdmin, name=method_name)
+        @monkey(ModelAdmin)
         def get_queryset(self, request):
             return get_queryset.original(self, request).nocache()
 

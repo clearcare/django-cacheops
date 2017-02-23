@@ -28,14 +28,6 @@ settings = Settings()
 
 
 @memoize
-def model_name(model):
-    app = model._meta.app_label
-    # module_name is fallback for Django 1.5-
-    model_name = getattr(model._meta, 'model_name', None) or model._meta.module_name
-    return '%s.%s' % (app, model_name)
-
-
-@memoize
 def prepare_profiles():
     """
     Prepares a dict 'app.model' -> profile, for use in model_profile()
@@ -78,6 +70,7 @@ def model_profile(model):
         return None
 
     model_profiles = prepare_profiles()
+
     app = model._meta.app_label.lower()
     model_name = model._meta.model_name
     for guess in ('%s.%s' % (app, model_name), '%s.*' % app, '*.*'):

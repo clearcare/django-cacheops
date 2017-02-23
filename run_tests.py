@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import os, sys, re, shutil
 os.environ['DJANGO_SETTINGS_MODULE'] = 'tests.settings'
-os.environ['CACHEOPS_DEGRADE_ON_FAILURE'] = 'True'
 
 
 # Use psycopg2cffi for PyPy
@@ -16,7 +15,8 @@ except ImportError:
 # Set up Django
 import django
 from django.core.management import call_command
-django.setup()
+if hasattr(django, 'setup'):
+    django.setup()
 
 
 # Derive test names

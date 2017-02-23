@@ -3,7 +3,12 @@ import six
 import threading
 
 from funcy import wraps, once
-from django.db.backends.utils import CursorWrapper
+try:
+    from django.db.backends.utils import CursorWrapper
+except ImportError:
+    # Django 1.6 support
+    from django.db.backends.util import CursorWrapper
+
 from django.db.transaction import get_connection, Atomic
 
 from .utils import monkey_mix

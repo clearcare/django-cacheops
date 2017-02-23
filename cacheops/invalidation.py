@@ -10,7 +10,6 @@ except ImportError:
     from django.db.models.expressions import Expression
 
 from .conf import settings
-from .conf import model_name
 from .utils import non_proxy, NOT_SERIALIZED_FIELDS, elapsed_timer
 from .redis import redis_client, handle_connection_failure, load_script
 from .signals import cache_invalidation
@@ -34,13 +33,13 @@ def invalidate_dict(model, obj_dict):
             json.dumps(obj_dict, default=str)
         ])
 
-    cache_invalidation.send(
-        sender=model,
-        model_name=model_name(model),
-        obj_dict=obj_dict,
-        deleted=deleted,
-        duration=duration(),
-    )
+    # cache_invalidation.send(
+    #     sender=model,
+    #     model_name=model_name(model),
+    #     obj_dict=obj_dict,
+    #     deleted=deleted,
+    #     duration=duration(),
+    # )
 
 
 def invalidate_obj(obj):
