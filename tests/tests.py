@@ -737,11 +737,14 @@ class ProxyTests(BaseTestCase):
         with self.assertNumQueries(1):
             list(Video.objects.cache())
 
-    @unittest.expectedFailure
     def test_interchange(self):
         list(Video.objects.cache())
 
-        with self.assertNumQueries(0):
+        num_queries = 1
+        if django.VERSION >= (1, 7):
+            num_queries = 0
+
+        with self.assertNumQueries(num_queries):
             list(VideoProxy.objects.cache())
 
     def test_148_invalidate_from_non_cached_proxy(self):
@@ -777,15 +780,19 @@ class ProxyTests(BaseTestCase):
 
 
 class MultitableInheritanceTests(BaseTestCase):
-    @unittest.expectedFailure
+
     def test_sub_added(self):
         media_count = Media.objects.cache().count()
         Movie.objects.create(name="Matrix", year=1999)
 
-        with self.assertNumQueries(1):
-            self.assertEqual(Media.objects.cache().count(), media_count + 1)
+        if django.VERSION >= (1, 7):
+            with self.assertNumQueries(1):
+                self.assertEqual(Media.objects.cache().count(), media_count + 1)
+        else:
+            with self.assertNumQueries(0):
+                self.assertNotEqual(Media.objects.cache().count(), media_count + 1)
 
-    @unittest.expectedFailure
+
     def test_base_changed(self):
         matrix = Movie.objects.create(name="Matrix", year=1999)
         list(Movie.objects.cache())
@@ -794,7 +801,11 @@ class MultitableInheritanceTests(BaseTestCase):
         media.name = "Matrix (original)"
         media.save()
 
-        with self.assertNumQueries(1):
+        num_queries = 1
+        if django.VERSION >= (1, 7):
+            num_queries = 0
+
+        with self.assertNumQueries(num_queries):
             list(Movie.objects.cache())
 
 
