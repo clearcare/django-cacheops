@@ -9,12 +9,11 @@ from rediscluster import StrictRedisCluster
 
 from .conf import settings
 
-# try:
-#     import rediscluster
-# except ImportError:
-#     HAS_REDISCLUSTER = False
-# else:
-#     HAS_REDISCLUSTER = True
+HAS_REDISCLUSTER = True
+try:
+    import rediscluster
+except ImportError:
+    HAS_REDISCLUSTER = False
 
 
 if settings.CACHEOPS_DEGRADE_ON_FAILURE:
@@ -33,8 +32,7 @@ else:
 LOCK_TIMEOUT = 60
 
 
-class CacheopsRedis(redis.StrictRedis):
-    get = handle_connection_failure(redis.StrictRedis.get)
+class RedisMixin(object):
 
     def get_with_ttl(self, name):
         txn = redis_client.pipeline()
@@ -95,9 +93,13 @@ class CacheopsRedis(redis.StrictRedis):
         self._unlock(keys=[key, signal_key])
 
 
-# if HAS_REDISCLUSTER:
-    # class ClusterRedis(rediscluster.StrictRedisCluster):
-        # pass
+class CacheopsRedis(redis.StrictRedis, RedisMixin):
+    get = handle_connection_failure(redis.StrictRedis.get)
+
+
+if HAS_REDISCLUSTER:
+    class CacheopsRedisCluster(rediscluster.StrictRedisCluster, RedisMixin):
+        get = handle_connection_failure(rediscluster.StrictRedisCluster.get)
 
 
 class LazyRedis(object):
@@ -107,15 +109,13 @@ class LazyRedis(object):
                 {"host": "localhost", "port": "7000"},
                 {"host": "localhost", "port": "7001"},
             ]
-            client = StrictRedisCluster(startup_nodes=startup_nodes)
+            client = CacheopsRedisCluster(startup_nodes=startup_nodes)
+            print('bye')
         else:
-            Redis = SafeRedis if settings.CACHEOPS_DEGRADE_ON_FAILURE else redis.StrictRedis
-
-            # Allow client connection settings to be specified by a URL.
             if isinstance(settings.CACHEOPS_REDIS, six.string_types):
-            client = CacheopsRedis.from_url(settings.CACHEOPS_REDIS)
+                client = CacheopsRedis.from_url(settings.CACHEOPS_REDIS)
             else:
-            client = CacheopsRedis(**settings.CACHEOPS_REDIS)
+                client = CacheopsRedis(**settings.CACHEOPS_REDIS)
 
         object.__setattr__(self, '__class__', client.__class__)
         object.__setattr__(self, '__dict__', client.__dict__)

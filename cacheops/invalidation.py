@@ -9,7 +9,7 @@ try:
 except ImportError:
     from django.db.models.expressions import Expression
 
-from .conf import settings
+from .conf import settings, get_tag
 from .utils import non_proxy, NOT_SERIALIZED_FIELDS, elapsed_timer
 from .redis import redis_client, handle_connection_failure, load_script
 from .signals import cache_invalidation
@@ -23,7 +23,6 @@ __all__ = ('invalidate_obj', 'invalidate_model', 'invalidate_all', 'no_invalidat
 @handle_connection_failure
 def invalidate_dict(model, obj_dict):
     if no_invalidation.active or not settings.CACHEOPS_ENABLED:
-        # import ipdb; ipdb.set_trace()
         return
     model = non_proxy(model)
     invalidate = load_script('invalidate')
@@ -31,8 +30,6 @@ def invalidate_dict(model, obj_dict):
     hash_tag = None
     if settings.CACHEOPS_CLUSTERED_REDIS:
         hash_tag = get_tag()(model=model)
-
-        # print(model._meta.db_table, json.dumps(obj_dict, default=str), hash_tag)
 
     with elapsed_timer() as duration:
         if hash_tag:
@@ -50,13 +47,13 @@ def invalidate_dict(model, obj_dict):
                 json.dumps(obj_dict, default=str)
             ])
 
-    # cache_invalidation.send(
-    #     sender=model,
-    #     model_name=model_name(model),
-    #     obj_dict=obj_dict,
-    #     deleted=deleted,
-    #     duration=duration(),
-    # )
+    cache_invalidation.send(
+        sender=model,
+        model_name=model._meta.model_name,
+        obj_dict=obj_dict,
+        deleted=deleted,
+        duration=duration(),
+    )
 
 
 def invalidate_obj(obj):

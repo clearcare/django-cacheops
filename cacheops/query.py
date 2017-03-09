@@ -20,8 +20,8 @@ try:
 except ImportError:
     MAX_GET_RESULTS = None
 
-from .conf import model_profile, model_is_fake, settings, ALL_OPS
-from .utils import monkey_mix, stamp_fields, func_cache_key, cached_view_fab, family_has_profile
+from .conf import model_profile, model_is_fake, settings, ALL_OPS, get_tag
+from .utils import monkey_mix, stamp_fields, func_cache_key, cached_view_fab, family_has_profile, extract_hash_tag
 from .redis import redis_client, handle_connection_failure, load_script
 from .tree import dnfs
 from .invalidation import invalidate_obj, invalidate_dict, no_invalidation
@@ -35,6 +35,80 @@ _local_get_cache = {}
 
 from pprint import pprint
 
+@handle_connection_failure
+def python_cache_thing(model, cache_key, data, cond_dnf=[[]], timeout=None):
+    """
+    Writes data to cache and creates appropriate invalidators.
+    """
+    model = non_proxy(model)
+
+    if timeout is None:
+        profile = model_profile(model)
+        timeout = profile['timeout']
+
+    # Ensure that all schemes of current query are "known"
+    schemes = map(conj_scheme, cond_dnf)
+    cache_schemes.ensure_known(model, schemes)
+
+    txn = redis_client.pipeline()
+
+    # Write data to cache
+    pickled_data = pickle.dumps(data, -1)
+    if timeout is not None:
+        txn.setex(cache_key, timeout, pickled_data)
+    else:
+        txn.set(cache_key, pickled_data)
+
+    # Add new cache_key to list of dependencies for every conjunction in dnf
+    for conj in cond_dnf:
+        conj_key = conj_cache_key(model, conj)
+        txn.sadd(conj_key, cache_key)
+        if timeout is not None:
+            # Invalidator timeout should be larger than timeout of any key it references
+            # So we take timeout from profile which is our upper limit
+            # Add few extra seconds to be extra safe
+            txn.expire(conj_key, model._cacheprofile['timeout'] + 10)
+
+    txn.execute()
+
+@handle_connection_failure
+def lua_cache_thing(model, cache_key, data, cond_dnf=[[]], timeout=None):
+    """
+    Writes data to cache and creates appropriate invalidators.
+    """
+    model = non_proxy(model)
+
+    if timeout is None:
+        profile = model_profile(model)
+        timeout = profile['timeout']
+
+    # Ensure that all schemes of current query are "known"
+    schemes = map(conj_scheme, cond_dnf)
+    cache_schemes.ensure_known(model, schemes)
+
+    txn = redis_client.pipeline()
+
+    # Write data to cache
+    pickled_data = pickle.dumps(data, -1)
+    if timeout is not None:
+        txn.setex(cache_key, timeout, pickled_data)
+    else:
+        txn.set(cache_key, pickled_data)
+
+    # Add new cache_key to list of dependencies for every conjunction in dnf
+    for conj in cond_dnf:
+        conj_key = conj_cache_key(model, conj)
+        txn.sadd(conj_key, cache_key)
+        if timeout is not None:
+            # Invalidator timeout should be larger than timeout of any key it references
+            # So we take timeout from profile which is our upper limit
+            # Add few extra seconds to be extra safe
+            txn.expire(conj_key, model._cacheprofile['timeout'] + 10)
+
+    txn.execute()
+
+
+
 
 @handle_connection_failure
 def cache_thing(cache_key, data, cond_dnfs, timeout):
@@ -44,12 +118,12 @@ def cache_thing(cache_key, data, cond_dnfs, timeout):
     # Could have changed after last check, sometimes superficially
     if transaction_state.is_dirty():
         return
-    print('cache_key')
-    print(cache_key)
-    print('data---')
-    pprint(data)
-    print('cond_dnfs---')
-    pprint(cond_dnfs)
+    # print('cache_key')
+    # print(cache_key)
+    # print('data---')
+    # pprint(data)
+    # print('cond_dnfs---')
+    # pprint(cond_dnfs)
     hash_tag = None
     if settings.CACHEOPS_CLUSTERED_REDIS:
         hash_tag = extract_hash_tag(cache_key)
@@ -113,13 +187,6 @@ def cached_as(*samples, **kwargs):
 
             cache_key = 'as:' + key_func(func, args, kwargs, key_extra)
             if settings.CACHEOPS_CLUSTERED_REDIS:
-            with redis_client.getting(cache_key, lock=lock) as cache_data:
-                cache_read.send(sender=None, func=func, hit=cache_data is not None)
-                # func=func,
-                # hit=cache_data is not None,
-                # age=timeout - ttl,
-                # cache_key=cache_key,
-
                 hash_tags = [extract_hash_tag(key) for key in key_extra if key]
                 hash_tags = filter(lambda x: x, hash_tags)
                 hash_tag = hash_tags[0]
@@ -128,32 +195,7 @@ def cached_as(*samples, **kwargs):
 
                 cache_key = '%s%s' % (hash_tag, cache_key)
 
-            if settings.CACHEOPS_CLUSTERED_REDIS and False:
-                # Derrick's stuff
-                hash_tag, cache_key = tag_cache_key(cache_key)
-                cache_data = None
-                if hash_tag is not None:
-                    cache_data = redis_client.get(cache_key)
-
-                    # XXX: Fix this
-                    ttl = 100
-
-                    cache_read.send(
-                        sender=None,
-                        func=func,
-                        hit=cache_data is not None,
-                        age=timeout - ttl,
-                        cache_key=cache_key,
-                    )
-                    if cache_data is not None:
-                        return pickle.loads(cache_data)
-
-                result = func(*args, **kwargs)
-                print(cache_key, result, cond_dnfs, timeout)
-                if hash_tag is not None:
-                    cache_thing(cache_key, result, cond_dnfs, timeout)
-            else:
-                cache_data = redis_client.get(cache_key)
+            with redis_client.getting(cache_key, lock=lock) as cache_data:
                 ttl = 100
                 cache_read.send(
                     sender=None,
@@ -250,8 +292,6 @@ class QuerySetMixin(object):
         NOTE: you actually can disable caching by omiting corresponding ops,
               .cache(ops=[]) disables caching for this queryset.
         """
-        if debug:
-            self.debug=debug
         self._require_cacheprofile()
 
         if ops is None or ops == 'all':
@@ -337,19 +377,19 @@ class QuerySetMixin(object):
 
         cache_key = self._cache_key()
         if not self._cacheprofile['write_only'] and not self._for_write:
-        # Derrick added some checks for if cache_key not None
             cache_data = redis_client.get(cache_key)
 
-            # Trying get data from cache
-            # cache_data = redis_client.get(cache_key)
             # XXX: Fix this!!
             ttl = 100
-            #     func=self._cacheprofile['name'],
-            #     hit=cache_data is not None,
-            #     age=self._cacheprofile['timeout'] - ttl,
-            #     cache_key=cache_key,
-            # )
-            # self._cache_results(cache_key, self._result_cache)
+            cache_read.send(
+                sender=self.model,
+                func=None,
+                hit=cache_data is not None,
+                # func=self._cacheprofile['name'],
+                # hit=cache_data is not None,
+                age=self._cacheprofile['timeout'] - ttl,
+                cache_key=cache_key,
+            )
 
             if cache_data is not None:
                 return iter(pickle.loads(cache_data))
@@ -584,13 +624,10 @@ def invalidate_m2m(sender=None, instance=None, model=None, action=None, pk_set=N
 
     # TODO: optimize several invalidate_objs/dicts at once
     if action == 'pre_clear':
-        # print 'pre clear yo'
-        # import ipdb; ipdb.set_trace()
         # TODO: always use column names here once Django 1.3 is dropped
         instance_field = m2m.m2m_reverse_field_name() if reverse else m2m.m2m_field_name()
         objects = sender.objects.filter(**{instance_field: instance.pk})
         for obj in objects:
-            print obj
             invalidate_obj(obj)
     elif action in ('post_add', 'pre_remove'):
         instance_column, model_column = m2m.m2m_column_name(), m2m.m2m_reverse_name()
