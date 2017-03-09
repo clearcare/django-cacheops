@@ -33,13 +33,14 @@ def invalidate_dict(model, obj_dict):
             json.dumps(obj_dict, default=str)
         ])
 
-    # cache_invalidation.send(
-    #     sender=model,
-    #     model_name=model_name(model),
-    #     obj_dict=obj_dict,
-    #     deleted=deleted,
-    #     duration=duration(),
-    # )
+    cache_invalidation.send(
+        sender=model,
+        # model_name=model_name(model),
+        model_name='model name',
+        obj_dict=obj_dict,
+        deleted=deleted,
+        duration=duration(),
+    )
 
 
 def invalidate_obj(obj):
