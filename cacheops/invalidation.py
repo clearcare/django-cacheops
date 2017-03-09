@@ -9,7 +9,7 @@ try:
 except ImportError:
     from django.db.models.expressions import Expression
 
-from .conf import model_name, settings, get_tag
+from .conf import settings
 from .utils import non_proxy, NOT_SERIALIZED_FIELDS, elapsed_timer
 from .redis import redis_client, handle_connection_failure, load_script
 from .signals import cache_invalidation
@@ -22,9 +22,8 @@ __all__ = ('invalidate_obj', 'invalidate_model', 'invalidate_all', 'no_invalidat
 @queue_when_in_transaction
 @handle_connection_failure
 def invalidate_dict(model, obj_dict):
-    # if 'Brand_labels' in str(model):
+    if no_invalidation.active or not settings.CACHEOPS_ENABLED:
         # import ipdb; ipdb.set_trace()
-    if no_invalidation.active:
         return
     model = non_proxy(model)
     invalidate = load_script('invalidate')
@@ -51,13 +50,13 @@ def invalidate_dict(model, obj_dict):
                 json.dumps(obj_dict, default=str)
             ])
 
-    cache_invalidation.send(
-        sender=model,
-        model_name=model_name(model),
-        obj_dict=obj_dict,
-        deleted=deleted,
-        duration=duration(),
-    )
+    # cache_invalidation.send(
+    #     sender=model,
+    #     model_name=model_name(model),
+    #     obj_dict=obj_dict,
+    #     deleted=deleted,
+    #     duration=duration(),
+    # )
 
 
 def invalidate_obj(obj):
@@ -76,7 +75,7 @@ def invalidate_model(model):
     NOTE: This is a heavy artillery which uses redis KEYS request,
           which could be relatively slow on large datasets.
     """
-    if no_invalidation.active:
+    if no_invalidation.active or not settings.CACHEOPS_ENABLED:
         return
     model = non_proxy(model)
     if settings.CACHEOPS_CLUSTERED_REDIS:
@@ -94,7 +93,7 @@ def invalidate_model(model):
 @queue_when_in_transaction
 @handle_connection_failure
 def invalidate_all():
-    if no_invalidation.active:
+    if no_invalidation.active or not settings.CACHEOPS_ENABLED:
         return
     redis_client.flushdb()
 

@@ -49,6 +49,9 @@ class BaseCache(object):
         def decorator(func):
             @wraps(func)
             def wrapper(*args, **kwargs):
+                if not settings.CACHEOPS_ENABLED:
+                    return func(*args, **kwargs)
+
                 cache_key = 'c:' + key_func(func, args, kwargs, extra)
                 try:
                     result = self.get(cache_key)
@@ -72,6 +75,8 @@ class BaseCache(object):
         return decorator
 
     def cached_view(self, timeout=None, extra=None):
+        if callable(timeout):
+            return self.cached_view()(timeout)
         return cached_view_fab(self.cached)(timeout=timeout, extra=extra)
 
 

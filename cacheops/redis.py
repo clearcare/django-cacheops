@@ -1,10 +1,10 @@
 from __future__ import absolute_import
 import warnings
+from contextlib import contextmanager
 import six
 
 from funcy import decorator, identity, memoize
 import redis
-from django.core.exceptions import ImproperlyConfigured
 from rediscluster import StrictRedisCluster
 
 from .conf import settings
@@ -30,7 +30,10 @@ else:
     handle_connection_failure = identity
 
 
-class SafeRedis(redis.StrictRedis):
+LOCK_TIMEOUT = 60
+
+
+class CacheopsRedis(redis.StrictRedis):
     get = handle_connection_failure(redis.StrictRedis.get)
 
     def get_with_ttl(self, name):
@@ -43,6 +46,54 @@ class SafeRedis(redis.StrictRedis):
         txn.execute()
         return cache_data, ttl
 
+    @contextmanager
+    def getting(self, key, lock=False):
+        if not lock:
+            yield self.get(key)
+        else:
+            locked = False
+            try:
+                data = self._get_or_lock(key)
+                locked = data is None
+                yield data
+            finally:
+                if locked:
+                    self._release_lock(key)
+
+    @handle_connection_failure
+    def _get_or_lock(self, key):
+        self._lock = getattr(self, '_lock', self.register_script("""
+            local locked = redis.call('set', KEYS[1], 'LOCK', 'nx', 'ex', ARGV[1])
+            if locked then
+                redis.call('del', KEYS[2])
+            end
+            return locked
+        """))
+        signal_key = key + ':signal'
+
+        while True:
+            data = self.get(key)
+            if data is None:
+                if self._lock(keys=[key, signal_key], args=[LOCK_TIMEOUT]):
+                    return None
+            elif data != b'LOCK':
+                return data
+
+            # No data and not locked, wait
+            self.brpoplpush(signal_key, signal_key, timeout=LOCK_TIMEOUT)
+
+    @handle_connection_failure
+    def _release_lock(self, key):
+        self._unlock = getattr(self, '_unlock', self.register_script("""
+            if redis.call('get', KEYS[1]) == 'LOCK' then
+                redis.call('del', KEYS[1])
+            end
+            redis.call('lpush', KEYS[2], 1)
+            redis.call('expire', KEYS[2], 1)
+        """))
+        signal_key = key + ':signal'
+        self._unlock(keys=[key, signal_key])
+
 
 # if HAS_REDISCLUSTER:
     # class ClusterRedis(rediscluster.StrictRedisCluster):
@@ -51,9 +102,6 @@ class SafeRedis(redis.StrictRedis):
 
 class LazyRedis(object):
     def _setup(self):
-        if not settings.CACHEOPS_REDIS:
-            raise ImproperlyConfigured('You must specify CACHEOPS_REDIS setting to use cacheops')
-
         if settings.CACHEOPS_CLUSTERED_REDIS:
             startup_nodes = [
                 {"host": "localhost", "port": "7000"},
@@ -65,9 +113,9 @@ class LazyRedis(object):
 
             # Allow client connection settings to be specified by a URL.
             if isinstance(settings.CACHEOPS_REDIS, six.string_types):
-                client = Redis.from_url(settings.CACHEOPS_REDIS)
+            client = CacheopsRedis.from_url(settings.CACHEOPS_REDIS)
             else:
-                client = Redis(**settings.CACHEOPS_REDIS)
+            client = CacheopsRedis(**settings.CACHEOPS_REDIS)
 
         object.__setattr__(self, '__class__', client.__class__)
         object.__setattr__(self, '__dict__', client.__dict__)
