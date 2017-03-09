@@ -192,6 +192,12 @@ def cached_as(*samples, **kwargs):
                 hash_tag = hash_tags[0]
                 if not hash_tags.count(hash_tag) == len(hash_tags):
                     raise Exception("Cannot combine multiple models with different hash tags using cached_as.")
+                cache_read.send(
+                    sender=None,
+                    func=func,
+                    hit=cache_data is not None,
+                    age=timeout - ttl,
+                    cache_key=cache_key)
 
                 cache_key = '%s%s' % (hash_tag, cache_key)
 
