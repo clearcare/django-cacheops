@@ -27,4 +27,4 @@ try:
     call_command('test', names, failfast='-x' in sys.argv, verbosity=2 if '-v' in sys.argv else 1)
 finally:
     if django.VERSION >= (1, 7):
-        shutil.rmtree('tests/migrations')
+        shutil.rmtree('tests/migrations', ignore_errors=True)
