@@ -9,7 +9,7 @@ try:
 except ImportError:
     from django.db.models.expressions import Expression
 
-from .conf import model_name
+from .conf import settings
 from .utils import non_proxy, NOT_SERIALIZED_FIELDS, elapsed_timer
 from .redis import redis_client, handle_connection_failure, load_script
 from .signals import cache_invalidation
@@ -22,7 +22,7 @@ __all__ = ('invalidate_obj', 'invalidate_model', 'invalidate_all', 'no_invalidat
 @queue_when_in_transaction
 @handle_connection_failure
 def invalidate_dict(model, obj_dict):
-    if no_invalidation.active:
+    if no_invalidation.active or not settings.CACHEOPS_ENABLED:
         return
     model = non_proxy(model)
     invalidate = load_script('invalidate')
@@ -35,7 +35,8 @@ def invalidate_dict(model, obj_dict):
 
     cache_invalidation.send(
         sender=model,
-        model_name=model_name(model),
+        # model_name=model_name(model),
+        model_name='model name',
         obj_dict=obj_dict,
         deleted=deleted,
         duration=duration(),
@@ -58,7 +59,7 @@ def invalidate_model(model):
     NOTE: This is a heavy artillery which uses redis KEYS request,
           which could be relatively slow on large datasets.
     """
-    if no_invalidation.active:
+    if no_invalidation.active or not settings.CACHEOPS_ENABLED:
         return
     model = non_proxy(model)
     conjs_keys = redis_client.keys('conj:%s:*' % model._meta.db_table)
@@ -70,7 +71,7 @@ def invalidate_model(model):
 @queue_when_in_transaction
 @handle_connection_failure
 def invalidate_all():
-    if no_invalidation.active:
+    if no_invalidation.active or not settings.CACHEOPS_ENABLED:
         return
     redis_client.flushdb()
 

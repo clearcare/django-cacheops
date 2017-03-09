@@ -1,12 +1,21 @@
 # -*- coding: utf-8 -*-
+import six
 import threading
+
 from funcy import wraps, once
+try:
+    from django.db.backends.utils import CursorWrapper
+except ImportError:
+    # Django 1.6 support
+    from django.db.backends.util import CursorWrapper
+
 from django.db.transaction import get_connection, Atomic
 
 from .utils import monkey_mix
 
 
-__all__ = ('in_transaction', 'queue_when_in_transaction', 'install_cacheops_transaction_support')
+__all__ = ('queue_when_in_transaction', 'install_cacheops_transaction_support',
+           'transaction_state')
 
 
 class TransactionState(threading.local):
@@ -15,34 +24,41 @@ class TransactionState(threading.local):
         self._stack = []
 
     def begin(self):
-        self._stack.append([])
+        self._stack.append({'cbs': [], 'dirty': False})
 
     def commit(self):
         context = self._stack.pop()
         if self._stack:
             # savepoint
-            self._stack[-1].extend(context)
+            self._stack[-1]['cbs'].extend(context['cbs'])
+            self._stack[-1]['dirty'] = self._stack[-1]['dirty'] or context['dirty']
         else:
             # transaction
-            for func, args, kwargs in context:
+            for func, args, kwargs in context['cbs']:
                 func(*args, **kwargs)
 
     def rollback(self):
         self._stack.pop()
 
     def append(self, item):
-        self._stack[-1].append(item)
+        self._stack[-1]['cbs'].append(item)
+
+    def in_transaction(self):
+        return bool(self._stack)
+
+    def mark_dirty(self):
+        self._stack[-1]['dirty'] = True
+
+    def is_dirty(self):
+        return any(context['dirty'] for context in self._stack)
 
 transaction_state = TransactionState()
 
 
-def in_transaction():
-    return bool(transaction_state._stack)
-
 def queue_when_in_transaction(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if in_transaction():
+        if transaction_state.in_transaction():
             transaction_state.append((func, args, kwargs))
         else:
             func(*args, **kwargs)
@@ -64,6 +80,36 @@ class AtomicMixIn(object):
             transaction_state.rollback()
 
 
+class CursorWrapperMixin(object):
+    def callproc(self, procname, params=None):
+        result = self._no_monkey.callproc(self, procname, params)
+        if transaction_state.in_transaction():
+            transaction_state.mark_dirty()
+        return result
+
+    def execute(self, sql, params=None):
+        result = self._no_monkey.execute(self, sql, params)
+        if transaction_state.in_transaction() and is_sql_dirty(sql):
+            transaction_state.mark_dirty()
+        return result
+
+    def executemany(self, sql, param_list):
+        result = self._no_monkey.executemany(self, sql, param_list)
+        if transaction_state.in_transaction() and is_sql_dirty(sql):
+            transaction_state.mark_dirty()
+        return result
+
+
+def is_sql_dirty(sql):
+    # This should not happen as using bytes in Python 3 is against db protocol,
+    # but some people will pass it anyway
+    if six.PY3 and isinstance(sql, six.binary_type):
+        sql = sql.decode()
+    sql = sql.lower()
+    return 'update' in sql or 'insert' in sql or 'delete' in sql
+
+
 @once
 def install_cacheops_transaction_support():
     monkey_mix(Atomic, AtomicMixIn)
+    monkey_mix(CursorWrapper, CursorWrapperMixin)

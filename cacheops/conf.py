@@ -10,7 +10,8 @@ ALL_OPS = {'get', 'fetch', 'count', 'exists'}
 
 
 class Settings(object):
-    CACHEOPS_REDIS = None
+    CACHEOPS_ENABLED = True
+    CACHEOPS_REDIS = {}
     CACHEOPS_DEFAULTS = {}
     CACHEOPS = {}
     CACHEOPS_LRU = False
@@ -27,14 +28,6 @@ settings = Settings()
 
 
 @memoize
-def model_name(model):
-    app = model._meta.app_label
-    # module_name is fallback for Django 1.5-
-    model_name = getattr(model._meta, 'model_name', None) or model._meta.module_name
-    return '%s.%s' % (app, model_name)
-
-
-@memoize
 def prepare_profiles():
     """
     Prepares a dict 'app.model' -> profile, for use in model_profile()
@@ -43,6 +36,8 @@ def prepare_profiles():
         'ops': (),
         'local_get': False,
         'db_agnostic': True,
+        'write_only': False,
+        'lock': False,
     }
     profile_defaults.update(settings.CACHEOPS_DEFAULTS)
 
@@ -66,17 +61,24 @@ def prepare_profiles():
 
     return model_profiles
 
-@memoize
+
 def model_profile(model):
     """
     Returns cacheops profile for a model
     """
-    model_profiles = prepare_profiles()
-    app = model._meta.app_label
-    app_model = model_name(model)
+    if model_is_fake(model):
+        return None
 
-    for guess in (app_model, '%s.*' % app, '*.*'):
-        profile = model_profiles.get(guess)
-        if profile:
-            profile['name'] = app_model
-            return profile
+    model_profiles = prepare_profiles()
+
+    app = model._meta.app_label.lower()
+    model_name = model._meta.model_name
+    for guess in ('%s.%s' % (app, model_name), '%s.*' % app, '*.*'):
+        if guess in model_profiles:
+            return model_profiles[guess]
+    else:
+        return None
+
+
+def model_is_fake(model):
+    return model.__module__ == '__fake__'

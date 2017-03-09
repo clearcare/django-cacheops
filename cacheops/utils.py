@@ -2,12 +2,10 @@
 import re
 import json
 import inspect
-import six
-from funcy import memoize, compose, wraps, any
+from funcy import memoize, compose, wraps, any, partial
 from funcy.py2 import mapcat
 from .cross import md5hex
 
-import django
 from django.db import models
 from django.http import HttpRequest
 
@@ -19,9 +17,8 @@ from .conf import model_profile
 NOT_SERIALIZED_FIELDS = (
     models.FileField,
     models.TextField, # One should not filter by long text equality
+    models.BinaryField,
 )
-if hasattr(models, 'BinaryField'):
-    NOT_SERIALIZED_FIELDS += (models.BinaryField,)
 
 
 @memoize
@@ -49,14 +46,6 @@ def family_has_profile(cls):
     return any(model_profile, model_family(cls))
 
 
-if django.VERSION < (1, 6):
-    def get_model_name(model):
-        return model._meta.module_name
-else:
-    def get_model_name(model):
-        return model._meta.model_name
-
-
 class MonkeyProxy(object):
     def __init__(self, cls):
         monkey_bases = [b._no_monkey for b in cls.__bases__ if hasattr(b, '_no_monkey')]
@@ -80,18 +69,14 @@ def monkey_mix(cls, mixin, methods=None):
     cls._no_monkey = MonkeyProxy(cls)
 
     if methods is None:
-        # NOTE: there no such thing as unbound method in Python 3, it uses naked functions,
-        #       so we use some six based altering here
-        isboundmethod = inspect.isfunction if six.PY3 else inspect.ismethod
-        methods = inspect.getmembers(mixin, isboundmethod)
+        methods = [(name, m) for name, m in mixin.__dict__.items() if inspect.isfunction(m)]
     else:
-        methods = [(m, getattr(mixin, m)) for m in methods]
+        methods = [(m, mixin.__dict__[m]) for m in methods]
 
     for name, method in methods:
         if hasattr(cls, name):
             setattr(cls._no_monkey, name, getattr(cls, name))
-        # NOTE: remember, there is no bound methods in Python 3
-        setattr(cls, name, six.get_unbound_function(method))
+        setattr(cls, name, method)
 
 
 @memoize
@@ -105,28 +90,26 @@ def stamp_fields(model):
 
 ### Cache keys calculation
 
-def obj_key(obj):
-    if isinstance(obj, models.Model):
-        return '%s.%s.%s' % (obj._meta.app_label, obj._meta.model_name, obj.pk)
-    else:
-        return str(obj)
-
-def func_cache_key(func, args, kwargs, extra=None):
+def func_cache_key(func, args, kwargs, extra=None, debug=False):
     """
     Calculate cache key based on func and arguments
     """
-    factors = [func.__module__, func.__name__, args, kwargs, extra]
-    if hasattr(func, '__code__'):
-        factors.append(func.__code__.co_firstlineno)
+    def obj_key(obj):
+        if isinstance(obj, models.Model):
+            return '%s.%s.%s' % (obj._meta.app_label, obj._meta.model_name, obj.pk)
+        elif inspect.isfunction(obj):
+            factors = [obj.__module__, obj.__name__]
+            # Really useful to ignore this when editing code
+            if not debug and hasattr(func, '__code__'):
+                factors.append(obj.__code__.co_firstlineno)
+            return factors
+        else:
+            return str(obj)
+
+    factors = [obj_key(func), args, kwargs, extra]
     return md5hex(json.dumps(factors, sort_keys=True, default=obj_key))
 
-def debug_cache_key(func, args, kwargs, extra=None):
-    """
-    Same as func_cache_key(), but doesn't take into account function line.
-    Handy to use when editing code.
-    """
-    factors = [func.__module__, func.__name__, args, kwargs, extra]
-    return md5hex(json.dumps(factors, sort_keys=True, default=obj_key))
+debug_cache_key = partial(func_cache_key, debug=True)
 
 def view_cache_key(func, args, kwargs, extra=None):
     """
