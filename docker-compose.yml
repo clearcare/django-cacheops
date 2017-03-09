@@ -7,10 +7,21 @@ services:
 
   postgres:
     image: postgres
+    environment:
+      - POSTGRES_USER=cacheops
+      - POSTGRES_DB=cacheops
 
   mysql:
     image: mysql
+    environment:
+      - MYSQL_ALLOW_EMPTY_PASSWORD=yes
+      - MYSQL_DATABASE=cacheops
+      - MYSQL_USER=cacheops
 
   postgis:
     image: mdillon/postgis
+    environment:
+      - POSTGRES_DB=cacheops
+      - POSTGRES_USER=cacheops
+
 
