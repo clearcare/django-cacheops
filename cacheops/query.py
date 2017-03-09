@@ -101,11 +101,12 @@ def cached_as(*samples, **kwargs):
             cache_key = 'as:' + key_func(func, args, kwargs, key_extra)
             cache_data, ttl = redis_client.get_with_ttl(cache_key)
             with redis_client.getting(cache_key, lock=lock) as cache_data:
-                cache_read.send(sender=None, func=func, hit=cache_data is not None)
-                # func=func,
-                # hit=cache_data is not None,
-                # age=timeout - ttl,
-                # cache_key=cache_key,
+                cache_read.send(
+                    sender=None,
+                    func=func,
+                    hit=cache_data is not None,
+                    age=timeout - ttl,
+                    cache_key=cache_key)
 
                 if cache_data is not None:
                     return pickle.loads(cache_data)
