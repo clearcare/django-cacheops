@@ -57,14 +57,14 @@ elif os.environ.get('CACHEOPS_DB') == 'mysql':
         'default': {
             'ENGINE': 'django.db.backends.mysql',
             'NAME': 'cacheops',
-            'USER': 'cacheops',
+            'USER': 'root',
             'PASSWORD': '',
             'HOST': '',
         },
         'slave': {
             'ENGINE': 'django.db.backends.mysql',
             'NAME': 'cacheops_slave',
-            'USER': 'cacheops',
+            'USER': 'root',
             'PASSWORD': '',
             'HOST': '',
         },

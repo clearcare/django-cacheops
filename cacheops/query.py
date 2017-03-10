@@ -57,7 +57,7 @@ def python_cache_thing(cache_key, pickled_data, cond_dnfs, timeout):
 
             # Add our cache_key to the right conj key for invalidation
             def _to_str(s):
-                if not isinstance(s, basestring):
+                if not isinstance(s, six.string_types):
                     s = str(s)
                     if s in ('True', 'False'):
                         s = s.lower()
@@ -102,8 +102,11 @@ def cache_thing(cache_key, data, cond_dnfs, timeout):
         hash_tag = None
         hash_tag = extract_hash_tag(cache_key)
     else:
-        python_cache_thing(cache_key, pickled_data, cond_dnfs, timeout)
-        # lua_cache_thing(cache_key, pickled_data, cond_dnfs, timeout)
+        import os
+        if os.environ.get('NEW') or True:
+            python_cache_thing(cache_key, pickled_data, cond_dnfs, timeout)
+        else:
+            lua_cache_thing(cache_key, pickled_data, cond_dnfs, timeout)
 
 
 def cached_as(*samples, **kwargs):
