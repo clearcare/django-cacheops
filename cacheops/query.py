@@ -33,82 +33,61 @@ __all__ = ('cached_as', 'cached_view_as', 'install_cacheops')
 
 _local_get_cache = {}
 
-from pprint import pprint
+@handle_connection_failure
+def python_cache_thing(cache_key, pickled_data, cond_dnfs, timeout):
+    """
+    Writes data to cache and creates appropriate invalidators
+    using python so we can handle multiple shard hash tags.
+    """
+    # Write data to cache
+    if timeout is not None:
+        redis_client.setex(cache_key, timeout, pickled_data)
+    else:
+        redis_client.set(cache_key, pickled_data)
+
+    for disj_pair in cond_dnfs:
+        db_table = disj_pair[0]
+        schemes_key = u'schemes:{}'.format(db_table)
+        disj = disj_pair[1]
+        for conj in disj:
+            # conj is like: (u'brand_id', 2), (u'label_id', 2)
+            conj_scheme = u','.join([p[0] for p in conj])
+            # make sure this unique scheme is known
+            redis_client.sadd(schemes_key, conj_scheme)
+
+            # Add our cache_key to the right conj key for invalidation
+            def _to_str(s):
+                if not isinstance(s, basestring):
+                    s = str(s)
+                    if s in ('True', 'False'):
+                        s = s.lower()
+                return s
+
+            eq_conjs = ['='.join([p[0], _to_str(p[1])]) for p in conj]
+            and_conjs = '&'.join(eq_conjs)
+            conj_key = 'conj:{}:{}'.format(db_table, and_conjs)
+            redis_client.sadd(conj_key, cache_key)
+
+            if not settings.CACHEOPS_LRU:
+                conj_ttl = redis_client.ttl(conj_key)
+                if conj_ttl < timeout:
+                    redis_client.expire(conj_key, timeout * 2 + 10)
+
 
 @handle_connection_failure
-def python_cache_thing(model, cache_key, data, cond_dnf=[[]], timeout=None):
+def lua_cache_thing(cache_key, pickled_data, cond_dnfs, timeout):
     """
-    Writes data to cache and creates appropriate invalidators.
+    Writes data to cache and creates appropriate invalidators using
+    lua only script.
     """
-    model = non_proxy(model)
-
-    if timeout is None:
-        profile = model_profile(model)
-        timeout = profile['timeout']
-
-    # Ensure that all schemes of current query are "known"
-    schemes = map(conj_scheme, cond_dnf)
-    cache_schemes.ensure_known(model, schemes)
-
-    txn = redis_client.pipeline()
-
-    # Write data to cache
-    pickled_data = pickle.dumps(data, -1)
-    if timeout is not None:
-        txn.setex(cache_key, timeout, pickled_data)
-    else:
-        txn.set(cache_key, pickled_data)
-
-    # Add new cache_key to list of dependencies for every conjunction in dnf
-    for conj in cond_dnf:
-        conj_key = conj_cache_key(model, conj)
-        txn.sadd(conj_key, cache_key)
-        if timeout is not None:
-            # Invalidator timeout should be larger than timeout of any key it references
-            # So we take timeout from profile which is our upper limit
-            # Add few extra seconds to be extra safe
-            txn.expire(conj_key, model._cacheprofile['timeout'] + 10)
-
-    txn.execute()
-
-@handle_connection_failure
-def lua_cache_thing(model, cache_key, data, cond_dnf=[[]], timeout=None):
-    """
-    Writes data to cache and creates appropriate invalidators.
-    """
-    model = non_proxy(model)
-
-    if timeout is None:
-        profile = model_profile(model)
-        timeout = profile['timeout']
-
-    # Ensure that all schemes of current query are "known"
-    schemes = map(conj_scheme, cond_dnf)
-    cache_schemes.ensure_known(model, schemes)
-
-    txn = redis_client.pipeline()
-
-    # Write data to cache
-    pickled_data = pickle.dumps(data, -1)
-    if timeout is not None:
-        txn.setex(cache_key, timeout, pickled_data)
-    else:
-        txn.set(cache_key, pickled_data)
-
-    # Add new cache_key to list of dependencies for every conjunction in dnf
-    for conj in cond_dnf:
-        conj_key = conj_cache_key(model, conj)
-        txn.sadd(conj_key, cache_key)
-        if timeout is not None:
-            # Invalidator timeout should be larger than timeout of any key it references
-            # So we take timeout from profile which is our upper limit
-            # Add few extra seconds to be extra safe
-            txn.expire(conj_key, model._cacheprofile['timeout'] + 10)
-
-    txn.execute()
-
-
-
+    load_script('cache_thing', settings.CACHEOPS_LRU)(
+        keys=[cache_key],
+        args=[
+            pickled_data,
+            json.dumps(cond_dnfs, default=str),
+            timeout
+        ]
+    )
 
 @handle_connection_failure
 def cache_thing(cache_key, data, cond_dnfs, timeout):
@@ -118,25 +97,13 @@ def cache_thing(cache_key, data, cond_dnfs, timeout):
     # Could have changed after last check, sometimes superficially
     if transaction_state.is_dirty():
         return
-    # print('cache_key')
-    # print(cache_key)
-    # print('data---')
-    # pprint(data)
-    # print('cond_dnfs---')
-    # pprint(cond_dnfs)
-    hash_tag = None
+    pickled_data = pickle.dumps(data, -1)
     if settings.CACHEOPS_CLUSTERED_REDIS:
+        hash_tag = None
         hash_tag = extract_hash_tag(cache_key)
-
-    load_script('cache_thing', settings.CACHEOPS_LRU)(
-        keys=[cache_key],
-        args=[
-            pickle.dumps(data, -1),
-            json.dumps(cond_dnfs, default=str),
-            timeout,
-            hash_tag,
-        ]
-    )
+    else:
+        python_cache_thing(cache_key, pickled_data, cond_dnfs, timeout)
+        # lua_cache_thing(cache_key, pickled_data, cond_dnfs, timeout)
 
 
 def cached_as(*samples, **kwargs):
@@ -192,14 +159,6 @@ def cached_as(*samples, **kwargs):
                 hash_tag = hash_tags[0]
                 if not hash_tags.count(hash_tag) == len(hash_tags):
                     raise Exception("Cannot combine multiple models with different hash tags using cached_as.")
-                cache_read.send(
-                    sender=None,
-                    func=func,
-                    hit=cache_data is not None,
-                    age=timeout - ttl,
-                    cache_key=cache_key)
-
-                cache_key = '%s%s' % (hash_tag, cache_key)
 
             with redis_client.getting(cache_key, lock=lock) as cache_data:
                 ttl = 100

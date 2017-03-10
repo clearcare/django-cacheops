@@ -4,7 +4,16 @@ from funcy import memoize, merge
 
 from django.conf import settings as base_settings
 from django.core.exceptions import ImproperlyConfigured
-from django.utils.module_loading import import_string
+
+try:
+    from django.utils.module_loading import import_string
+    import_func = import_string
+except ImportError:
+    # import_string was introduced in Django 1.7
+    from django.utils.module_loading import import_by_path
+    import_func = import_by_path
+
+
 
 
 ALL_OPS = {'get', 'fetch', 'count', 'exists'}
@@ -93,9 +102,9 @@ def get_tag():
     func = None
     if base_settings.CACHEOPS_CLUSTERED_REDIS:
         try:
-            func = import_string(settings.CACHEOPS_HASH_TAG_CALLBACK)
+            func = import_func(settings.CACHEOPS_HASH_TAG_CALLBACK)
             assert callable(func)
-        except Exception, exc:
+        except Exception as exc:
             raise exc
             # raise Exception("If using clustered Redis you must provide a hashtag callback function.")
 

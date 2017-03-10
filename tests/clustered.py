@@ -32,7 +32,6 @@ def get_hash_tag(db_table):
 
 
 def hash_tag_callback(model, db_table=None):
-    print('hi')
     return '{default}'
 
     if db_table is None:

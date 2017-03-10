@@ -461,7 +461,7 @@ class IssueTests(BaseTestCase):
         list(Post.objects.filter(category__in=Category.objects.nocache()).cache())
 
     def test_114(self):
-        list(Category.objects.cache().filter(title=u'ó'))
+        list(Category.objects.cache().filter(title='ó'))
 
     def test_145(self):
         # Create One with boolean False

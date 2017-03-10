@@ -185,6 +185,6 @@ def carefully_strip_whitespace(text):
 
 def extract_hash_tag(cache_key):
     hash_tag = ''
-    if cache_key and isinstance(cache_key, basestring):
+    if cache_key and isinstance(cache_key, basestring) and '}' in cache_key:
         hash_tag = cache_key[:cache_key.index('}') + 1]
     return hash_tag

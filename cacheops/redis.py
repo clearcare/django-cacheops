@@ -5,13 +5,12 @@ import six
 
 from funcy import decorator, identity, memoize
 import redis
-from rediscluster import StrictRedisCluster
 
 from .conf import settings
 
 HAS_REDISCLUSTER = True
 try:
-    import rediscluster
+    from rediscluster import StrictRedisCluster
 except ImportError:
     HAS_REDISCLUSTER = False
 
@@ -98,8 +97,8 @@ class CacheopsRedis(redis.StrictRedis, RedisMixin):
 
 
 if HAS_REDISCLUSTER:
-    class CacheopsRedisCluster(rediscluster.StrictRedisCluster, RedisMixin):
-        get = handle_connection_failure(rediscluster.StrictRedisCluster.get)
+    class CacheopsRedisCluster(StrictRedisCluster, RedisMixin):
+        get = handle_connection_failure(StrictRedisCluster.get)
 
 
 class LazyRedis(object):
@@ -110,7 +109,6 @@ class LazyRedis(object):
                 {"host": "localhost", "port": "7001"},
             ]
             client = CacheopsRedisCluster(startup_nodes=startup_nodes)
-            print('bye')
         else:
             if isinstance(settings.CACHEOPS_REDIS, six.string_types):
                 client = CacheopsRedis.from_url(settings.CACHEOPS_REDIS)

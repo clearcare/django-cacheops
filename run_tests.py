@@ -23,6 +23,9 @@ if hasattr(django, 'setup'):
 names = next((a for a in sys.argv[1:] if not a.startswith('-')), None)
 if not names:
     names = 'tests'
+elif names == 'clustered':
+    names = 'tests.clustered'
+    os.environ['TEST_CLUSTERED'] = 'True'
 elif re.search(r'^\d+', names):
     names = 'tests.tests.IssueTests.test_' + names
 elif not names.startswith('tests.'):
