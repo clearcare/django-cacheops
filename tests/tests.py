@@ -17,7 +17,7 @@ from cacheops.templatetags.cacheops import register
 from cacheops.transaction import transaction_state
 from cacheops.signals import cache_read, cache_invalidation
 
-from .models import *  # noqa
+from .models import *
 
 decorator_tag = register.decorator_tag
 

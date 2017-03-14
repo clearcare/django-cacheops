@@ -14,8 +14,6 @@ except ImportError:
     import_func = import_by_path
 
 
-
-
 ALL_OPS = {'get', 'fetch', 'count', 'exists'}
 
 
@@ -98,14 +96,15 @@ def model_is_fake(model):
     return model.__module__ == '__fake__'
 
 @memoize
-def get_tag():
+def get_hash_tag():
     func = None
     if base_settings.CACHEOPS_CLUSTERED_REDIS:
         try:
             func = import_func(settings.CACHEOPS_HASH_TAG_CALLBACK)
             assert callable(func)
-        except Exception as exc:
-            raise exc
-            # raise Exception("If using clustered Redis you must provide a hashtag callback function.")
+        except Exception:
+            raise Exception(
+                "If using clustered Redis you must provide a \
+                valid hashtag callback function.")
 
     return func

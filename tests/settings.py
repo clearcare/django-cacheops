@@ -119,4 +119,3 @@ CACHEOPS_CLUSTERED_REDIS = False
 CACHEOPS_HASH_TAG_CALLBACK = 'tests.tests_clustered.hash_tag_callback'
 if os.environ.get('TEST_CLUSTERED'):
     CACHEOPS_CLUSTERED_REDIS = True
-

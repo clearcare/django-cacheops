@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 import re
-import random
-import string
 import unittest
 
 import django
@@ -19,45 +17,15 @@ from cacheops.templatetags.cacheops import register
 from cacheops.transaction import transaction_state
 from cacheops.signals import cache_read, cache_invalidation
 
-from .models import *  # noqa
+from .models import *
 
 decorator_tag = register.decorator_tag
 
 
-db_tables = {}
-def get_hash_tag(db_table):
-    random_string = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6))
-    db_tables.setdefault(db_table, random_string)
-    return db_tables.get(db_table)
-
-
 def hash_tag_callback(model, db_table=None):
-    return '{default}'
-
     if db_table is None:
         db_table = model._meta.db_table
-    hash_tags = '{default}'
-    # [(ff.rel.model, ff.rel.one_to_many, ff.rel.model._meta.many_to_many) for ff in model._meta.get_fields() if ff.rel]
-    # if 'Brand_labels' in str(model):
-        # import ipdb; ipdb.set_trace()
-    # if hasattr(model, '_cacheprofile') and model._cacheprofile:
-        # hash_tag = model._cacheprofile.get('hash_tag', None)
-    if model._meta.auto_created:
-        hash_tag = '{' + get_hash_tag(model._meta.auto_created._meta.db_table) + '}'
-        # print 'autocreated catch'
-        # print model
-        # print model._meta.auto_created._meta.db_table
-        # ManyToMany fields
-        # import ipdb; ipdb.set_trace()
-        # models = [f.rel.model for f in model._meta.get_fields()]
-        # models.sort(key=lambda m: m._meta.db_table)
-        # hash_tag = get_hash_tag(models[0])
-    else:
-        hash_tag = '{' + get_hash_tag(db_table) + '}'
-    # if db_table == 'tests_brand_labels':
-        # import ipdb; ipdb.set_trace()
-    # print hash_tag, db_tables
-    return hash_tag
+    return '{%s}' % db_table
 
 
 @override_settings(

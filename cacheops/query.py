@@ -20,62 +20,25 @@ try:
 except ImportError:
     MAX_GET_RESULTS = None
 
-from .conf import model_profile, model_is_fake, settings, ALL_OPS, get_tag
-from .utils import monkey_mix, stamp_fields, func_cache_key, cached_view_fab, family_has_profile, extract_hash_tag
+from .conf import model_profile, model_is_fake, settings, ALL_OPS, get_hash_tag
+from .utils import (
+    monkey_mix, stamp_fields, func_cache_key, cached_view_fab,
+    family_has_profile, extract_hash_tag
+)
 from .redis import redis_client, handle_connection_failure, load_script
 from .tree import dnfs
 from .invalidation import invalidate_obj, invalidate_dict, no_invalidation
 from .transaction import transaction_state
 from .signals import cache_read
-
+from .clustered import cache_thing_clustered
 
 __all__ = ('cached_as', 'cached_view_as', 'install_cacheops')
 
 _local_get_cache = {}
 
-@handle_connection_failure
-def python_cache_thing(cache_key, pickled_data, cond_dnfs, timeout):
-    """
-    Writes data to cache and creates appropriate invalidators
-    using python so we can handle multiple shard hash tags.
-    """
-    # Write data to cache
-    if timeout is not None:
-        redis_client.setex(cache_key, timeout, pickled_data)
-    else:
-        redis_client.set(cache_key, pickled_data)
-
-    for disj_pair in cond_dnfs:
-        db_table = disj_pair[0]
-        schemes_key = u'schemes:{}'.format(db_table)
-        disj = disj_pair[1]
-        for conj in disj:
-            # conj is like: (u'brand_id', 2), (u'label_id', 2)
-            conj_scheme = u','.join([p[0] for p in conj])
-            # make sure this unique scheme is known
-            redis_client.sadd(schemes_key, conj_scheme)
-
-            # Add our cache_key to the right conj key for invalidation
-            def _to_str(s):
-                if not isinstance(s, six.string_types):
-                    s = str(s)
-                    if s in ('True', 'False'):
-                        s = s.lower()
-                return s
-
-            eq_conjs = ['='.join([p[0], _to_str(p[1])]) for p in conj]
-            and_conjs = '&'.join(eq_conjs)
-            conj_key = 'conj:{}:{}'.format(db_table, and_conjs)
-            redis_client.sadd(conj_key, cache_key)
-
-            if not settings.CACHEOPS_LRU:
-                conj_ttl = redis_client.ttl(conj_key)
-                if conj_ttl < timeout:
-                    redis_client.expire(conj_key, timeout * 2 + 10)
-
 
 @handle_connection_failure
-def lua_cache_thing(cache_key, pickled_data, cond_dnfs, timeout):
+def cache_thing_single(cache_key, pickled_data, cond_dnfs, timeout):
     """
     Writes data to cache and creates appropriate invalidators using
     lua only script.
@@ -99,14 +62,9 @@ def cache_thing(cache_key, data, cond_dnfs, timeout):
         return
     pickled_data = pickle.dumps(data, -1)
     if settings.CACHEOPS_CLUSTERED_REDIS:
-        hash_tag = None
-        hash_tag = extract_hash_tag(cache_key)
+        cache_thing_clustered(cache_key, pickled_data, cond_dnfs, timeout)
     else:
-        import os
-        if os.environ.get('NEW') or True:
-            python_cache_thing(cache_key, pickled_data, cond_dnfs, timeout)
-        else:
-            lua_cache_thing(cache_key, pickled_data, cond_dnfs, timeout)
+        cache_thing_single(cache_key, pickled_data, cond_dnfs, timeout)
 
 
 def cached_as(*samples, **kwargs):
@@ -161,7 +119,9 @@ def cached_as(*samples, **kwargs):
                 hash_tags = filter(lambda x: x, hash_tags)
                 hash_tag = hash_tags[0]
                 if not hash_tags.count(hash_tag) == len(hash_tags):
-                    raise Exception("Cannot combine multiple models with different hash tags using cached_as.")
+                    raise Exception("Cannot combine multiple models with \
+                        different hash tags using cached_as.")
+                cache_key = '{}{}'.format(hash_tag, cache_key)
 
             with redis_client.getting(cache_key, lock=lock) as cache_data:
                 ttl = 100
@@ -238,7 +198,7 @@ class QuerySetMixin(object):
             md.update(str(self.flat))
 
         if settings.CACHEOPS_CLUSTERED_REDIS:
-            hash_tag = get_tag()(model=self.model)
+            hash_tag = get_hash_tag()(model=self.model)
             cache_key = '%sq:%s' % (hash_tag, md.hexdigest())
         else:
             cache_key = 'q:%s' % md.hexdigest()
@@ -661,4 +621,3 @@ def install_cacheops():
     if six.PY3:
         import copyreg
         copyreg.pickle(memoryview, lambda b: (memoryview, (bytes(b),)))
-
