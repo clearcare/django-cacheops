@@ -3,6 +3,7 @@ import re
 import unittest
 
 import django
+from django.conf import settings
 from django.db import connection, connections
 from django.test import TestCase
 from django.test.client import RequestFactory
@@ -245,6 +246,7 @@ class DecoratorTests(BaseTestCase):
         self.assertEqual(get_calls(1), 1)      # hit
         self.assertEqual(get_calls(2), 2)      # miss
 
+    @unittest.skipIf(settings.CACHEOPS_CLUSTERED_REDIS, 'Not testing clustering.')
     def test_cached_as_depends_on_two_models(self):
         get_calls = _make_inc(cached_as(Category, Post))
         c = Category.objects.create(title='miss')
@@ -1006,7 +1008,7 @@ class InvalidationSignalsTests(BaseTestCase):
         test_model = Category.objects.create(title="foo")
         Category.objects.cache().get(id=test_model.id)
         signal_event = self.signal_calls[0]
-        self.assertEqual(None, signal_event['deleted'])
+        self.assertEqual(0, signal_event['deleted'])
         self.assertTrue(signal_event['duration'] > 0)
         self.assertEqual(Category, signal_event['sender'])
         self.assertEqual({u'id': 1, 'title': 'foo'}, signal_event['obj_dict'])

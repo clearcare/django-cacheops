@@ -115,6 +115,7 @@ SECRET_KEY = 'abc'
 
 # Required in Django 1.9
 TEMPLATES = [{'BACKEND': 'django.template.backends.django.DjangoTemplates'}]
-CACHEOPS_HASH_TAG_CALLBACK = 'tests.tests_clustered.hash_tag_callback'
+# CACHEOPS_HASH_TAG_CALLBACK = 'tests.models.hash_tag_callback'
+CACHEOPS_HASH_TAG_CALLBACK = 'tests.clustered.hash_tag_callback'
 if os.environ.get('TEST_CLUSTERED'):
     CACHEOPS_CLUSTERED_REDIS = True
