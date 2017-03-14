@@ -33,41 +33,35 @@ def invalidate_dict(model, obj_dict):
         return
     model = non_proxy(model)
 
-    if True:
+    if settings.CACHEOPS_CLUSTERED_REDIS:
         invalidate_clustered(model, obj_dict)
     else:
         invalidate_single(model, obj_dict)
     return
 
-    invalidate = load_script('invalidate')
+    # with elapsed_timer() as duration:
+    #     if hash_tag:
+    #         deleted = invalidate(
+    #             keys=[hash_tag],
+    #             args=[
+    #                 model._meta.db_table,
+    #                 json.dumps(obj_dict, default=str),
+    #                 hash_tag,
+    #             ],
+    #         )
+    #     else:
+    #         deleted = invalidate(args=[
+    #             model._meta.db_table,
+    #             json.dumps(obj_dict, default=str)
+    #         ])
 
-    hash_tag = None
-    if settings.CACHEOPS_CLUSTERED_REDIS:
-        hash_tag = get_hash_tag()(model=model)
-
-    with elapsed_timer() as duration:
-        if hash_tag:
-            deleted = invalidate(
-                keys=[hash_tag],
-                args=[
-                    model._meta.db_table,
-                    json.dumps(obj_dict, default=str),
-                    hash_tag,
-                ],
-            )
-        else:
-            deleted = invalidate(args=[
-                model._meta.db_table,
-                json.dumps(obj_dict, default=str)
-            ])
-
-    cache_invalidation.send(
-        sender=model,
-        model_name=model._meta.model_name,
-        obj_dict=obj_dict,
-        deleted=deleted,
-        duration=duration(),
-    )
+    # cache_invalidation.send(
+    #     sender=model,
+    #     model_name=model._meta.model_name,
+    #     obj_dict=obj_dict,
+    #     deleted=deleted,
+    #     duration=duration(),
+    # )
 
 
 def invalidate_obj(obj):
