@@ -124,12 +124,14 @@ def cached_as(*samples, **kwargs):
                 cache_key = '{}{}'.format(hash_tag, cache_key)
 
             with redis_client.getting(cache_key, lock=lock) as cache_data:
-                ttl = 100
+                # NOTE: We used to fill out age but now that there's locking
+                # and such it's a little harder so skipping it for now since
+                # I'm not sure if we need that number
                 cache_read.send(
                     sender=None,
                     func=func,
                     hit=cache_data is not None,
-                    age=timeout - ttl,
+                    age=0,
                     cache_key=cache_key,
                 )
                 if cache_data is not None:
@@ -145,6 +147,14 @@ def cached_as(*samples, **kwargs):
 
 def cached_view_as(*samples, **kwargs):
     return cached_view_fab(cached_as)(*samples, **kwargs)
+
+
+def _model_label(model):
+    model_name = '.'.join([
+        model._meta.app_label.lower(),
+        model._meta.model_name
+    ])
+    return model_name.lower()
 
 
 class QuerySetMixin(object):
@@ -306,16 +316,11 @@ class QuerySetMixin(object):
         cache_key = self._cache_key()
         if not self._cacheprofile['write_only'] and not self._for_write:
             cache_data = redis_client.get(cache_key)
-
-            # XXX: Fix this!!
-            ttl = 100
             cache_read.send(
                 sender=self.model,
-                func=None,
+                func=_model_label(self.model),
                 hit=cache_data is not None,
-                # func=self._cacheprofile['name'],
-                # hit=cache_data is not None,
-                age=self._cacheprofile['timeout'] - ttl,
+                age=0,
                 cache_key=cache_key,
             )
 
@@ -352,7 +357,13 @@ class QuerySetMixin(object):
                 self._cache_results(cache_key, self._result_cache)
             else:
                 with redis_client.getting(cache_key, lock=lock) as cache_data:
-                    cache_read.send(sender=self.model, func=None, hit=cache_data is not None)
+                    cache_read.send(
+                        sender=self.model,
+                        func=_model_label(self.model),
+                        hit=cache_data is not None,
+                        age=0,
+                        cache_key=cache_key
+                    )
                     if cache_data is not None:
                         self._result_cache = pickle.loads(cache_data)
                     else:

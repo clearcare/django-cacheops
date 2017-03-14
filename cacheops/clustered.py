@@ -91,8 +91,12 @@ def invalidate_clustered(model, obj_dict):
     for scheme in schemes:
         conj_keys.append(_conj_cache_key(
             hash_tag, db_table, scheme, obj_dict))
-    if len(conj_keys):
+    num_conj_keys = len(conj_keys)
+    num_cache_keys = 0
+    if num_conj_keys:
         cache_keys = redis_client.sunion(*conj_keys)
         for hash_tag, grouped_keys in _group_keys_by_hash_tag(cache_keys).iteritems():
             for keys in _chunks(list(grouped_keys), 100):
+                num_cache_keys += len(keys)
                 redis_client.delete(*keys)
+    return num_conj_keys + num_cache_keys

@@ -33,16 +33,6 @@ LOCK_TIMEOUT = 60
 
 class RedisMixin(object):
 
-    def get_with_ttl(self, name):
-        txn = redis_client.pipeline()
-        cache_data = redis_client.get(name)
-        ttl = redis_client.ttl(name)
-        # txn = self.pipeline()
-        # cache_data = self.get(name)
-        # ttl = self.ttl(name)
-        txn.execute()
-        return cache_data, ttl
-
     @contextmanager
     def getting(self, key, lock=False):
         if not lock:

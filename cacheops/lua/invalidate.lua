@@ -8,10 +8,8 @@ local conj_cache_key = function (db_table, scheme, obj)
     for field in string.gmatch(scheme, "[^,]+") do
         table.insert(parts, field .. '=' .. tostring(obj[field]))
     end
-    local key = 'conj:' .. db_table .. ':' .. table.concat(parts, '&')
-    redis.log(redis.LOG_NOTICE, 'key:' .. key)
 
-    return key
+    return 'conj:' .. db_table .. ':' .. table.concat(parts, '&')
 end
 
 local call_in_chunks = function (command, args)
@@ -35,11 +33,11 @@ if next(conj_keys) ~= nil then
     local cache_keys = redis.call('sunion', unpack(conj_keys))
     -- we delete cache keys since they are invalid
     -- and conj keys as they will refer only deleted keys
-    redis.log(redis.LOG_NOTICE, unpack(conj_keys))
     redis.call('del', unpack(conj_keys))
     if next(cache_keys) ~= nil then
         -- NOTE: can't just do redis.call('del', unpack(...)) cause there is limit on number
         --       of return values in lua.
         call_in_chunks('del', cache_keys)
     end
+    return table.getn(cache_keys) + table.getn(conj_keys)
 end

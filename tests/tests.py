@@ -894,16 +894,16 @@ class SignalsTests(BaseTestCase):
         super(SignalsTests, self).tearDown()
         cache_read.disconnect(dispatch_uid=1)
 
-    def Xtest_queryset(self):
+    def test_queryset(self):
         # Miss
         test_model = Category.objects.create(title="foo")
         Category.objects.cache().get(id=test_model.id)
         del self.signal_calls[0]['cache_key']
         self.assertEqual(self.signal_calls, [{
             'sender': Category,
-            'func': 'tests.m2mwithcharid',
+            'func': 'tests.category',
             'hit': False,
-            'age': 3602,
+            'age': 0,  # not implemented
         }])
 
         # Hit
@@ -912,12 +912,12 @@ class SignalsTests(BaseTestCase):
         del self.signal_calls[0]['cache_key']
         self.assertEqual(self.signal_calls, [{
             'sender': Category,
-            'func': 'tests.m2mwithcharid',
+            'func': 'tests.category',
             'hit': True,
-            'age': 0,
+            'age': 0,  # not implemented
         }])
 
-    def Xtest_cached_as(self):
+    def test_cached_as(self):
         get_calls = _make_inc(cached_as(Category.objects.filter(title='test')))
         func = get_calls.__wrapped__
 
@@ -928,7 +928,7 @@ class SignalsTests(BaseTestCase):
             'sender': None,
             'func': func,
             'hit': False,
-            'age': 3602,
+            'age': 0,  # not implemented
         }])
 
         # Hit
@@ -1002,7 +1002,7 @@ class InvalidationSignalsTests(BaseTestCase):
         super(InvalidationSignalsTests, self).tearDown()
         cache_invalidation.disconnect(dispatch_uid=1)
 
-    def Xtest_queryset(self):
+    def test_queryset(self):
         test_model = Category.objects.create(title="foo")
         Category.objects.cache().get(id=test_model.id)
         signal_event = self.signal_calls[0]
