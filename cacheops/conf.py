@@ -95,6 +95,7 @@ def model_profile(model):
 def model_is_fake(model):
     return model.__module__ == '__fake__'
 
+
 @memoize
 def get_hash_tag():
     func = None
@@ -104,7 +105,7 @@ def get_hash_tag():
             assert callable(func)
         except Exception:
             raise Exception(
-                "If using clustered Redis you must provide a \
-                valid hashtag callback function.")
+                "If using clustered Redis you must provide a "
+                "valid hashtag callback function.")
 
     return func

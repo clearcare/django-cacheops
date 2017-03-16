@@ -240,7 +240,8 @@ class PolymorphicZ(models.Model):
     a = models.ForeignKey(PolymorphicA)
 
 
-def hash_tag_callback(model, db_table=None):
+def hash_tag_callback(model=None, db_table=None):
+    assert model or db_table
     if db_table is None:
         db_table = model._meta.db_table
     return '{%s}' % db_table

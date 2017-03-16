@@ -19,13 +19,6 @@ from .clustered import invalidate_clustered
 __all__ = ('invalidate_obj', 'invalidate_model', 'invalidate_all', 'no_invalidation')
 
 
-def invalidate_single(model, obj_dict):
-    return load_script('invalidate')(args=[
-        model._meta.db_table,
-        json.dumps(obj_dict, default=str)
-    ])
-
-
 @queue_when_in_transaction
 @handle_connection_failure
 def invalidate_dict(model, obj_dict):
@@ -37,7 +30,11 @@ def invalidate_dict(model, obj_dict):
         if settings.CACHEOPS_CLUSTERED_REDIS:
             deleted = invalidate_clustered(model, obj_dict)
         else:
-            deleted = invalidate_single(model, obj_dict)
+            deleted = load_script('invalidate')(args=[
+                model._meta.db_table,
+                json.dumps(obj_dict, default=str)
+            ])
+
     model_name = '.'.join([
         model._meta.app_label.lower(),
         model._meta.model_name
@@ -46,7 +43,7 @@ def invalidate_dict(model, obj_dict):
         sender=model,
         model_name=model_name,
         obj_dict=obj_dict,
-        deleted=deleted,
+        deleted=deleted or 0,
         duration=duration(),
     )
 

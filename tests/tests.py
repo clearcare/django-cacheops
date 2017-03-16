@@ -518,7 +518,7 @@ class IssueTests(BaseTestCase):
         extra.post.category_id = 2
         extra.post.save()
 
-        # Fail because neither Extra nor Catehory changed, but something in between
+        # Fail because neither Extra nor Category changed, but something in between
         self.assertEqual([], list(Extra.objects.filter(post__category__title=title).cache()))
 
     # TODO: remove with QuerySetMixin.iterator() on next major release
@@ -946,6 +946,7 @@ class SignalsTests(BaseTestCase):
 
 
 class LockingTests(BaseTestCase):
+    @unittest.skipIf(settings.CACHEOPS_CLUSTERED_REDIS, 'Not testing clustering.')
     def test_lock(self):
         import random
         import threading

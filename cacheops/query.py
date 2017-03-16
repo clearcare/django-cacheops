@@ -38,21 +38,6 @@ _local_get_cache = {}
 
 
 @handle_connection_failure
-def cache_thing_single(cache_key, pickled_data, cond_dnfs, timeout):
-    """
-    Writes data to cache and creates appropriate invalidators using
-    lua only script.
-    """
-    load_script('cache_thing', settings.CACHEOPS_LRU)(
-        keys=[cache_key],
-        args=[
-            pickled_data,
-            json.dumps(cond_dnfs, default=str),
-            timeout
-        ]
-    )
-
-@handle_connection_failure
 def cache_thing(cache_key, data, cond_dnfs, timeout):
     """
     Writes data to cache and creates appropriate invalidators.
@@ -64,7 +49,14 @@ def cache_thing(cache_key, data, cond_dnfs, timeout):
     if settings.CACHEOPS_CLUSTERED_REDIS:
         cache_thing_clustered(cache_key, pickled_data, cond_dnfs, timeout)
     else:
-        cache_thing_single(cache_key, pickled_data, cond_dnfs, timeout)
+        load_script('cache_thing', settings.CACHEOPS_LRU)(
+            keys=[cache_key],
+            args=[
+                pickled_data,
+                json.dumps(cond_dnfs, default=str),
+                timeout
+            ]
+        )
 
 
 def cached_as(*samples, **kwargs):

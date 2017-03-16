@@ -17,8 +17,6 @@ def cache_thing_clustered(cache_key, pickled_data, cond_dnfs, timeout):
     Writes data to cache and creates appropriate invalidators
     using python so we can handle multiple shard hash tags.
     """
-    hash_tag = extract_hash_tag(cache_key)
-
     # Write data to cache
     if timeout is not None:
         redis_client.setex(cache_key, timeout, pickled_data)
@@ -27,6 +25,7 @@ def cache_thing_clustered(cache_key, pickled_data, cond_dnfs, timeout):
 
     for disj_pair in cond_dnfs:
         db_table = disj_pair[0]
+        hash_tag = get_hash_tag()(db_table=db_table)
         schemes_key = '{}schemes:{}'.format(hash_tag, db_table)
         disj = disj_pair[1]
         for conj in disj:
