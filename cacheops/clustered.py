@@ -94,7 +94,7 @@ def invalidate_clustered(model, obj_dict):
     num_cache_keys = 0
     if num_conj_keys:
         cache_keys = redis_client.sunion(*conj_keys)
-        for hash_tag, grouped_keys in _group_keys_by_hash_tag(cache_keys).iteritems():
+        for hash_tag, grouped_keys in _group_keys_by_hash_tag(cache_keys).items():
             for keys in _chunks(list(grouped_keys), 100):
                 num_cache_keys += len(keys)
                 redis_client.delete(*keys)

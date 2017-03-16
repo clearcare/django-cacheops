@@ -67,18 +67,21 @@ def queue_when_in_transaction(func):
 
 class AtomicMixIn(object):
     def __enter__(self):
+        entering = not transaction_state.in_transaction()
         transaction_state.begin()
         self._no_monkey.__enter__(self)
+        if on_commit and entering:
+            on_commit(transaction_state.commit)
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self._no_monkey.__exit__(self, exc_type, exc_value, traceback)
         connection = get_connection(self.using)
+        self._no_monkey.__exit__(self, exc_type, exc_value, traceback)
         if not connection.closed_in_transaction and exc_type is None and \
                 not connection.needs_rollback:
-            transaction_state.commit()
+            if not on_commit or transaction_state.in_transaction():
+                transaction_state.commit()
         else:
             transaction_state.rollback()
-
 
 class CursorWrapperMixin(object):
     def callproc(self, procname, params=None):

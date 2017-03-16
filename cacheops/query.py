@@ -108,7 +108,8 @@ def cached_as(*samples, **kwargs):
             cache_key = 'as:' + key_func(func, args, kwargs, key_extra)
             if settings.CACHEOPS_CLUSTERED_REDIS:
                 hash_tags = [extract_hash_tag(key) for key in key_extra if key]
-                hash_tags = filter(lambda x: x, hash_tags)
+                hash_tags = list(filter(lambda x: x, hash_tags))
+                # I think we need an error here if there are none
                 hash_tag = hash_tags[0]
                 if not hash_tags.count(hash_tag) == len(hash_tags):
                     raise Exception("Cannot combine multiple models with \
@@ -326,10 +327,7 @@ class QuerySetMixin(object):
             for obj in self._no_monkey.iterator(self):
                 self._result_cache.append(obj)
                 yield obj
-
             self._cache_results(cache_key, self._result_cache)
-            # if cache_key is not None: -- derricks
-            #     self._cache_results(cache_key, self._result_cache)
 
         return iterate()
 

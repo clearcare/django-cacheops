@@ -89,7 +89,7 @@ else:
 CACHEOPS_REDIS = {
     'host': 'localhost',
     'port': 6379,
-    'db': os.environ.get('DB', 13),
+    'db': 13,
     'socket_timeout': 3,
 }
 CACHEOPS_DEFAULTS = {

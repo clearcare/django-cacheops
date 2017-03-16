@@ -26,7 +26,7 @@ class Settings(object):
     CACHEOPS_DEGRADE_ON_FAILURE = False
     CACHEOPS_CLUSTERED_REDIS = False
     CACHEOPS_REDIS_ENGINE = None
-    CACHEOPS_HASH_TAG_CALLBACK = None
+    CACHEOPS_HASH_TAG_CALLBACK = ''
     FILE_CACHE_DIR = '/tmp/cacheops_file_cache'
     FILE_CACHE_TIMEOUT = 60*60*24*30
 
@@ -47,7 +47,6 @@ def prepare_profiles():
         'ops': (),
         'local_get': False,
         'db_agnostic': True,
-        'hash_tag': None,
         'write_only': False,
         'lock': False,
     }

@@ -22,7 +22,7 @@ __all__ = ('invalidate_obj', 'invalidate_model', 'invalidate_all', 'no_invalidat
 @queue_when_in_transaction
 @handle_connection_failure
 def invalidate_dict(model, obj_dict):
-    if no_invalidation.active:
+    if no_invalidation.active or not settings.CACHEOPS_ENABLED:
         return
     model = non_proxy(model)
 
@@ -64,7 +64,7 @@ def invalidate_model(model):
     NOTE: This is a heavy artillery which uses redis KEYS request,
           which could be relatively slow on large datasets.
     """
-    if no_invalidation.active:
+    if no_invalidation.active or not settings.CACHEOPS_ENABLED:
         return
     model = non_proxy(model)
     if settings.CACHEOPS_CLUSTERED_REDIS:
@@ -82,7 +82,7 @@ def invalidate_model(model):
 @queue_when_in_transaction
 @handle_connection_failure
 def invalidate_all():
-    if no_invalidation.active:
+    if no_invalidation.active or not settings.CACHEOPS_ENABLED:
         return
     redis_client.flushdb()
 
