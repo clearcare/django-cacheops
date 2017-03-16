@@ -1,18 +1,19 @@
 # -*- coding: utf-8 -*-
-import six
 import threading
 
-from funcy import wraps, once
+import six
+# Hack for Django < 1.9
 try:
     from django.db.backends.utils import CursorWrapper
+    from django.db.transaction import on_commit
 except ImportError:
+    on_commit = None
     # Django 1.6 support
     from django.db.backends.util import CursorWrapper
-
+from funcy import once, wraps
 from django.db.transaction import get_connection, Atomic
 
 from .utils import monkey_mix
-
 
 __all__ = ('queue_when_in_transaction', 'install_cacheops_transaction_support',
            'transaction_state')

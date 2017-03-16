@@ -4,6 +4,8 @@ import django
 from django.db.transaction import atomic
 from django.test import TransactionTestCase
 
+from cacheops.transaction import queue_when_in_transaction
+
 from .models import Category
 from .utils import run_in_thread
 
@@ -91,7 +93,7 @@ class TransactionSupportTests(TransactionTestCase):
             with self.assertNumQueries(1):
                 get_category()
 
-    @unittest.skipIf(not hasattr(connection, 'on_commit'),
+    @unittest.skipIf(not hasattr(django.db.connection, 'on_commit'),
                      'No on commit hooks support (Django < 1.9)')
     def test_call_cacheops_cbs_before_on_commit_cbs(self):
         calls = []
@@ -99,7 +101,7 @@ class TransactionSupportTests(TransactionTestCase):
         with atomic():
             def django_commit_handler():
                 calls.append('django')
-            connection.on_commit(django_commit_handler)
+            django.db.connection.on_commit(django_commit_handler)
 
             @queue_when_in_transaction
             def cacheops_commit_handler():
