@@ -94,11 +94,8 @@ if HAS_REDISCLUSTER:
 class LazyRedis(object):
     def _setup(self):
         if settings.CACHEOPS_CLUSTERED_REDIS:
-            startup_nodes = [
-                {"host": "localhost", "port": "7000"},
-                {"host": "localhost", "port": "7001"},
-            ]
-            client = CacheopsRedisCluster(startup_nodes=startup_nodes)
+            client = CacheopsRedisCluster(
+                startup_nodes=settings.CACHEOPS_REDIS_CLUSTER_NODES)
         else:
             if isinstance(settings.CACHEOPS_REDIS, six.string_types):
                 client = CacheopsRedis.from_url(settings.CACHEOPS_REDIS)

@@ -117,5 +117,10 @@ SECRET_KEY = 'abc'
 TEMPLATES = [{'BACKEND': 'django.template.backends.django.DjangoTemplates'}]
 CACHEOPS_HASH_TAG_CALLBACK = 'tests.models.hash_tag_callback'
 CACHEOPS_CLUSTERED_REDIS = False
+CACHEOPS_REDIS_CLUSTER_NODES = [
+    {"host": "localhost", "port": "7000"},
+    {"host": "localhost", "port": "7001"},
+]
+
 if os.environ.get('TEST_CLUSTERED'):
     CACHEOPS_CLUSTERED_REDIS = True
