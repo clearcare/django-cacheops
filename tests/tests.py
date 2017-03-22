@@ -1012,7 +1012,7 @@ class InvalidationSignalsTests(BaseTestCase):
         self.assertEqual(0, signal_event['deleted'])
         self.assertTrue(signal_event['duration'] > 0)
         self.assertEqual(Category, signal_event['sender'])
-        self.assertEqual({u'id': 1, 'title': 'foo'}, signal_event['obj_dict'])
+        self.assertEqual('foo', signal_event['obj_dict'].get('title'))
         self.assertEqual('tests.category', signal_event['model_name'])
 
 

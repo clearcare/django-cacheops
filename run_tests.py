@@ -30,11 +30,12 @@ elif re.search(r'^\d+', names):
 elif not names.startswith('tests.'):
     names = 'tests.tests.' + names
 
+
 # NOTE: we create migrations each time  since they depend on type of database,
 #       python and django versions
 try:
     if django.VERSION >= (1, 7):
-        shutil.rmtree('tests/migrations', True)
+        shutil.rmtree('tests/migrations', ignore_errors=True)
         call_command('makemigrations', 'tests', verbosity=2 if '-v' in sys.argv else 0)
     call_command('test', names, failfast='-x' in sys.argv, verbosity=2 if '-v' in sys.argv else 1)
 finally:

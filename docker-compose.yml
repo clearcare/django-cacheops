@@ -10,6 +10,9 @@ services:
     environment:
       - POSTGRES_USER=cacheops
       - POSTGRES_DB=cacheops
+      - POSTGRES_PASSWORD=abcd
+    ports:
+      - "5432:5432"
 
   mysql:
     image: mysql
@@ -17,11 +20,17 @@ services:
       - MYSQL_ALLOW_EMPTY_PASSWORD=yes
       - MYSQL_DATABASE=cacheops
       - MYSQL_USER=cacheops
+      - MYSQL_ROOT_PASSWORD=abcd
+    ports:
+      - "3306:3306"
 
   postgis:
     image: mdillon/postgis
     environment:
       - POSTGRES_DB=cacheops
       - POSTGRES_USER=cacheops
+      - POSTGRES_PASSWORD=abcd
+    ports:
+      - "6543:5432"
 
 

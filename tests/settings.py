@@ -23,15 +23,17 @@ if os.environ.get('CACHEOPS_DB') == 'postgresql':
             'ENGINE': 'django.db.backends.postgresql_psycopg2',
             'NAME': 'cacheops',
             'USER': 'cacheops',
-            'PASSWORD': '',
-            'HOST': ''
+            'PASSWORD': 'abcd',
+            'HOST': 'localhost',
+            'PORT': '5432'
         },
         'slave': {
             'ENGINE': 'django.db.backends.postgresql_psycopg2',
-            'NAME': 'cacheops_slave',
+            'NAME': 'cacheops',
             'USER': 'cacheops',
-            'PASSWORD': '',
-            'HOST': ''
+            'PASSWORD': 'abcd',
+            'HOST': 'localhost',
+            'PORT': '5432'
         },
     }
 elif os.environ.get('CACHEOPS_DB') == 'postgis':
@@ -41,15 +43,17 @@ elif os.environ.get('CACHEOPS_DB') == 'postgis':
             'ENGINE': 'django.contrib.gis.db.backends.postgis',
             'NAME': 'cacheops',
             'USER': 'cacheops',
-            'PASSWORD': '',
-            'HOST': '',
+            'PASSWORD': 'abcd',
+            'HOST': 'localhost',
+            'PORT': '6543'
         },
         'slave': {
             'ENGINE': 'django.contrib.gis.db.backends.postgis',
-            'NAME': 'cacheops_slave',
+            'NAME': 'cacheops',
             'USER': 'cacheops',
-            'PASSWORD': '',
-            'HOST': '',
+            'PASSWORD': 'abcd',
+            'HOST': 'localhost',
+            'PORT': '6543'
         },
     }
 elif os.environ.get('CACHEOPS_DB') == 'mysql':
@@ -58,15 +62,15 @@ elif os.environ.get('CACHEOPS_DB') == 'mysql':
             'ENGINE': 'django.db.backends.mysql',
             'NAME': 'cacheops',
             'USER': 'root',
-            'PASSWORD': '',
-            'HOST': '',
+            'PASSWORD': 'abcd',
+            'HOST': '127.0.0.1',
         },
         'slave': {
             'ENGINE': 'django.db.backends.mysql',
-            'NAME': 'cacheops_slave',
+            'NAME': 'cacheops',
             'USER': 'root',
-            'PASSWORD': '',
-            'HOST': '',
+            'PASSWORD': 'abcd',
+            'HOST': '127.0.0.1',
         },
     }
 else:
